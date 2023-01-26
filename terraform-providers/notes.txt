@@ -1,0 +1,224 @@
+Terraform Providers
+======================
+- After we write the tf config file, the first thing to do is to initiaze the working
+directory by running the tarraform init command
+- terraform downloads and installs the plugins for the providers used on the tf file
+inside the working directory having the tf file.
+- these can be plugins for cloud providers such as AWS, Azure, GCP or something as simple as Local
+providers that we used to create a local file on our local desktop.
+- terraform uses a plugins based architecture to work with 100s of infra platforms.
+- terraform providers are distributed by hashicorp and publicly available under terraform
+registry (https://registry.terraform.io/)
+
+- there are 2 tiers of providers
+    - Official: These are owned and maintained by hashicorp. incl the major cloud providers AWS, 
+    Azure, GCP etc and the Local provider.
+    - Verified: Owned and maintained by third parrty tech company who have gone through a 
+    partner provider process with Hashicorp. ex: bigIP provider from Fy network, heroku, digitalocean.
+    - Community: published and maintained by individual contributers of the hashicorp community.
+
+- terraform init command shows the version of the plugins that is being installed.
+
+------------------------
+Initializing provider plugins...
+- Finding hashicorp/local versions matching "2.3.0"...
+- Installing hashicorp/local v2.3.0...
+- Installed hashicorp/local v2.3.0 (signed by HashiCorp)
+------------------------
+
+- terraform init is a safe command, can be run as many times without impacting the actual infra.
+- the plugins are downloaded into a hidden directory .terraform/plugins in the working directory
+containing the tf config files.
+- the plugin name for Local provider is "hashicorp/local" is also known as the source address.
+- the plugin name is the identifier for the terraform to locate and download from terraform registry.
+
+
+hashicorp/local
+---------------
+- the 1st part of the name i.e. hashicorp is the name of the Organization Namespace.
+- next is the type which is name of the provider i.e. local
+- other ex of providers are:
+aws, azure, random etc.
+
+- the plugin name can also have an optional hostname (registry.terraform.io) in the front:
+registry.terraform.io/hashicorp/local , if not mentioned, defaulted to registry.terraform.io
+
+- by default terraform installs the latest version of provider.
+- The Offcial provider plugins are contiously being upgraded bringing newer functionalities 
+or bug fixes, hence can inject breaking changes to our tf config codes.
+- we should lock down provider plugin version by specifying the version.
+
+
+Using terraform working directory
+====================================
+- we can have as much as config file ends with .tf and terraform will pick all.
+- another pattern is to have one single config file main.tf and add all resources.
+- convenstion:
+main.tf
+variables.tf
+outputs.tf
+provider.tf
+
+
+Multiple Providers
+====================================
+- terraform support using multiple providers within the same tf config file.
+- lets use another provider called random (https://registry.terraform.io/providers/hashicorp/random/latest/docs)
+    - it allows to create random resources like randon_id, random_integer, random_password,
+    random_uuid, random_string random_pet (random pet names) etc.
+
+resource "random_pet" "my-pet" {
+    # Generate a new pet name each time we run terraform apply
+    prefix  = "Mrs"
+    separator = "."
+    length = "1"
+}
+
+- here, "random_pet" -> random is the provider name, pet is the resource type.
+
+/learn-terraform/terraform-providers/tf
+main.tf
+---------
+resource "local_file" "my_local_file" {
+  filename = "${path.module}/my_local_file.txt"
+  content  = "We love Pets!!"
+}
+
+resource "random_pet" "my-pet" {
+  prefix    = "Mrs"
+  separator = "."
+  length    = "1"
+}
+
+$ terraform fmt
+main.tf
+
+
+$ terraform init 
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/local...
+- Finding latest version of hashicorp/random...
+- Installing hashicorp/local v2.3.0...
+- Installed hashicorp/local v2.3.0 (signed by HashiCorp)
+- Installing hashicorp/random v3.4.3...
+- Installed hashicorp/random v3.4.3 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+
+
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               ├── local
+│               │   └── 2.3.0
+│               │       └── darwin_arm64
+│               │           └── terraform-provider-local_v2.3.0_x5
+│               └── random
+│                   └── 3.4.3
+│                       └── darwin_arm64
+│                           └── terraform-provider-random_v3.4.3_x5
+├── .terraform.lock.hcl
+└── main.tf
+
+
+$ terraform plan
+
+Terraform used the selected providers to generate the following execution plan. Resource 
+actions are indicated with the following
+symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # local_file.my_local_file will be created
+  + resource "local_file" "my_local_file" {
+      + content              = "We love Pets!!"
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "./my_local_file.txt"
+      + id                   = (known after apply)
+    }
+
+  # random_pet.my-pet will be created
+  + resource "random_pet" "my-pet" {
+      + id        = (known after apply)
+      + length    = 1
+      + prefix    = "Mrs"
+      + separator = "."
+    }
+
+Plan: 2 to add, 0 to change, 0 to destroy.
+
+───────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't 
+guarantee to take exactly these actions if you run "terraform apply" now.
+
+
+$ terraform apply 
+
+Terraform used the selected providers to generate the following execution plan. Resource 
+actions are indicated with the following
+symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # local_file.my_local_file will be created
+  + resource "local_file" "my_local_file" {
+      + content              = "We love Pets!!"
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "./my_local_file.txt"
+      + id                   = (known after apply)
+    }
+
+  # random_pet.my-pet will be created
+  + resource "random_pet" "my-pet" {
+      + id        = (known after apply)
+      + length    = 1
+      + prefix    = "Mrs"
+      + separator = "."
+    }
+
+Plan: 2 to add, 0 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+local_file.my_local_file: Creating...
+random_pet.my-pet: Creating...
+random_pet.my-pet: Creation complete after 0s [id=Mrs.dinosaur]
+local_file.my_local_file: Creation complete after 0s [id=41610eb3392bd24a459b8db8eda9018e71b07857]
+
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+
+
+- Here, the apply command prints the attribute called 'id' of these 2 resources:
+random_pet.my-pet ->        [id=Mrs.dinosaur]
+ 
+local_file.my-local-file -> [id=41610eb3392bd24a459b8db8eda9018e71b07857]
+

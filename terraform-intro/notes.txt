@@ -1,0 +1,89 @@
+Terraform Certification
+========================
+HashiCorp Certified: Terraform Associate (002)
+https://www.hashicorp.com/certification/terraform-associate
+
+Study Guide - Terraform Associate Certification (002)
+https://developer.hashicorp.com/terraform/tutorials/certification/associate-study
+
+
+Types of IAC Tools
+---------------------
+1. Configuration Management tool:
+ex: ansible, puppet, saltstack, used to design and manage software.
+
+2. Server templating tools:
+ex: docker, hashicorp packer, hasicorp vagrant. used to create custom image that 
+can be used to create a virtual machine or a container.
+
+3. Provisioning tools:
+ex: hashicorp terraform, AWS cloudformation. used to provision infra components using 
+a simple declarative code.
+- this type of tools *** deploy Immutable infrastructure resources *** such as Servers, DBs, Network components
+etc. 
+- Supports multiple providers and hence supports multiple platforms of Infra.
+
+
+Terraform
+----------------------
+- Its a free and open source tool build by Hashicorp.
+- can deploy infra accorss multiple platform ex: private/public cloud (aws,azure,oracle etc..).
+- providers helps terraform manage all third party platforms through their API. it enables managing cloud platform like 
+aws, gsp, azure as welll network infra like BigIP, CloudFlare, Palo Alto etc, as well as monitoring tools like
+DataDog, Grafana, Auth0, Wavefront etc, also manage DBs like InfluxDB, MongoDB, MySQL, PostgresSQL, 
+VCS platforms like Github, Bitbucket or Gitlab etc.
+
+- terraform uses HCL (Hashicorp Configuration Language) to define infra resources to be provisioned as blocks of code.
+- all infra resources is defined in a file with .tf extention.
+
+- the code we defined on .tf files is the state that we want our infra to be in. thats the desired state.
+- the current state is the infra state of our target platform.
+- terraform works in 3 phases (init, plan, apply) to get to the desired state.
+    - init: terraform initializes the project and identifies the providers to be used in the target env. 
+    - plan: terraform drafts the plan to get to target state by doing a diff with the current state.
+    - apply: makes all necessary changes required on target env to match the desired state.
+
+
+Resource
+---------------------
+- every object that terraform manages is called a resource. it can be a compute instance, a DB server on cloud 
+any other cloud services (s3, iam users/groups/roles, etc) or even a onprem physical server that terraform manages.
+- terraform manages the life cycle of resources from its provisioning to Configuration to de-comissioning.
+
+Terraform state
+---------------------
+- terraform records the state of the infra as it is seen in the real world (target env) in a file (terraform.tfstate)
+- based on this state terraform can determine what action to take when updating resources for a particular platform. 
+- terraform ensure the entire infra is always in defined state at all times.
+- the state is a blueprint of the infra deployed by terraform. 
+- terraform can read attributes of the existing infra components by configuring data sources. this can either can be 
+used for configuring other resources within terraform
+
+
+Terraform Import
+---------------------
+- terraform can import other resources outside of terraform that were either created manually or by other IaC tools and bring 
+them under its control so that it can manage those resources going forward.
+
+Terrafom Cloud and Terraform Enterprise
+----------------------------------------
+- provides additinal features that allows simplified collaboration across team members, improve security, centralize
+UI to manage terraform deployments.
+
+
+Install Terraform
+==========================
+1. https://developer.hashicorp.com/terraform/downloads
+2. run brew command to install on mac.
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+
+(base) Sandips-MacBook-Air:terraform-install sandip$ terraform version
+Terraform v1.3.7
+on darwin_arm64
+
+Enable tab completion:
+- If you use either Bash or Zsh, you can enable tab completion for Terraform commands. To enable autocomplete, 
+first ensure that a config file exists for your chosen shell.
+- touch ~/.bashrc
+- terraform -install-autocomplete

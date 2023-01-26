@@ -1,0 +1,108 @@
+Input Variables in Terraform
+==============================
+
+- It not best practice to hard code attribute values directly within the resource blocks in Terraform
+config files as it limits the re-usability of the code which defeats the purpose of IaC.
+- We need to make sure the same config code can be used again and again to deploy resources based on 
+set of input variables that can be provided during the execution time.
+- that is where Input Variables come into picture.
+
+- We can keep the input variables in the same main.tf file along with the resource blocks BUT 
+Best practice is to keep all of the input variables code in a single tf file variables.tf
+
+- Input variables are just like resource blocks consists of blocks and arguments.
+
+- syntax: 
+    - keyword -> variable followed by the variable name.
+    - within the variable block, we can provide a default value to each variable. this is an optional
+    attribute but it is a quick and simple way to assign variables.
+    - to use these variables, var.<name_of_variable> within respective resource block
+    - NOTE: input variables does not accept any expression like: 
+    variable "filename" {
+        default = "${path.module}/my_local_file.txt"
+    }
+
+    for that we need to use like:
+
+    resource "local_file" "my-local-file" {
+        filename = "${path.module}/${var.filename}"
+        content  = var.content
+    }
+
+
+variables.tf
+--------------
+variable "filename" {
+  default = "${path.module}/my_local_file.txt"
+}
+
+variable "content" {
+  default = "We love Pets!!"
+}
+
+variable "prefix" {
+  default = "Mrs"
+}
+
+variable "separator" {
+  default = "."
+}
+
+variable "length" {
+  default = "1"
+}
+
+
+main.tf
+------------------------------------------
+resource "local_file" "my-local-file" {
+  filename = var.filename
+  content  = var.content
+}
+
+resource "random_pet" "my-pet" {
+  prefix    = var.prefix
+  separator = var.separator
+  length    = var.filename
+}
+
+
+
+Similarly creating aws resource for EC2 instance:
+--------------------------------------------------
+
+main.tf
+--------
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+
+  required_version = ">= 1.2.0"
+}
+
+provider "aws" {
+  region  = "us-west-2"
+}
+
+resource "aws_instance" "app_server" {
+  ami           = var.ami
+  instance_type = var.instance_type
+
+  tags = {
+    Name = "ExampleAppServerInstance"
+  }
+}
+
+variables.tf
+--------------
+variable "ami" {
+  default = "ami-830c94e3"
+}
+
+variable "instance_type" {
+  default = "t2.micro"
+}
