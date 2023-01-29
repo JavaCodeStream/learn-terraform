@@ -1,0 +1,206 @@
+Github Provider
+=================
+https://registry.terraform.io/providers/integrations/github/latest/docs
+
+- The GitHub provider is used to interact with GitHub resources.
+
+- Verified or Partnet provider i.e. Owned and maintained by GitHub and signed the partner 
+provider process with Hashicorp.
+
+- It needs to be configured in provider block with the proper git credentials (token) before 
+it can be used. Depending on provider used, the way we authenticate also differs.
+
+- NOTE: required_providers sub-block within terraform block is also mandatory from 0.13 ver. 
+of terraform for Non-Official providers.
+
+
+terraform {
+  required_providers {
+    github = {
+      source = "integrations/github"
+      version = "5.16.0"
+    }
+  }
+}
+
+provider "github" {
+  token = "${var.github_token}"
+}
+
+- Generate token Github.com -> login -> settings -> developer settings -> Personal access tokens
+    - give it a note for which it will be used. ex: terraform
+    - select access checkbox for 1/ repo (all) 2/ delete repo.
+    - expiration 7 days (min)
+    - generate.
+    - Make sure to copy your personal access token now. You won’t be able to see it again!
+
+- Lets create a github repo using its terraform resource for github_repository
+
+main.tf
+---------
+terraform {
+  required_providers {
+    github = {
+      source = "integrations/github"
+      version = "5.16.0"
+    }
+  }
+}
+
+provider "github" {
+    # generate token from Github.com -> login -> settings -> developer settings -> Personal access tokens
+    token = "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"
+}
+
+# https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository
+resource "github_repository" "terraform_repo" {
+  name        = "example_tf_repo"
+  description = "For Terraform run test"
+
+  visibility = "private"
+}
+
+
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding integrations/github versions matching "5.16.0"...
+- Installing integrations/github v5.16.0...
+- Installed integrations/github v5.16.0 (signed by a HashiCorp partner, key ID 38027F80D7FD5FB2)
+
+Partner and community providers are signed by their developers.
+If you'd like to know more about provider signing, you can read about it here:
+https://www.terraform.io/docs/cli/plugins/signing.html
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform has been successfully initialized!
+
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           └── integrations
+│               └── github
+│                   └── 5.16.0
+│                       └── darwin_arm64
+│                           ├── CHANGELOG.md
+│                           ├── LICENSE
+│                           ├── README.md
+│                           └── terraform-provider-github_v5.16.0
+├── .terraform.lock.hcl
+├── main.tf
+└── notes.txt
+
+--------------------
+
+$ terraform apply
+
+github_repository.terraform_repo: Creating...
+github_repository.terraform_repo: Creation complete after 6s [id=example_tf_repo]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+github_repo_id = 594316493
+github_ssh_clone_url = "git@github.com:JavaCodeStream/example_tf_repo.git"
+
+--------------------
+
+$ terraform output
+github_repo_id = 594319144
+github_ssh_clone_url = "git@github.com:JavaCodeStream/example_tf_repo.git"
+
+--------------------
+
+$ terraform output github_ssh_clone_url
+"git@github.com:JavaCodeStream/example_tf_repo.git"
+
+--------------------
+
+$ terraform refresh 
+github_repository.terraform_repo: Refreshing state... [id=example_tf_repo]
+
+Outputs:
+
+github_repo_id = 594319144
+github_ssh_clone_url = "git@github.com:JavaCodeStream/example_tf_repo.git"
+
+--------------------
+
+
+$ terraform destroy 
+github_repository.terraform_repo: Refreshing state... [id=example_tf_repo]
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following
+symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # github_repository.terraform_repo will be destroyed
+  - resource "github_repository" "terraform_repo" {
+      - allow_auto_merge            = false -> null
+      - allow_merge_commit          = true -> null
+      - allow_rebase_merge          = true -> null
+      - allow_squash_merge          = true -> null
+      - allow_update_branch         = false -> null
+      - archived                    = false -> null
+      - default_branch              = "main" -> null
+      - delete_branch_on_merge      = false -> null
+      - description                 = "For Terraform run test" -> null
+      - etag                        = "W/\"85622389c96df648547814c85399b9403f289f34213fa35e14568fc2f7b4f6a2\"" -> null
+      - full_name                   = "JavaCodeStream/example_tf_repo" -> null
+      - git_clone_url               = "git://github.com/JavaCodeStream/example_tf_repo.git" -> null
+      - has_discussions             = false -> null
+      - has_downloads               = false -> null
+      - has_issues                  = false -> null
+      - has_projects                = false -> null
+      - has_wiki                    = false -> null
+      - html_url                    = "https://github.com/JavaCodeStream/example_tf_repo" -> null
+      - http_clone_url              = "https://github.com/JavaCodeStream/example_tf_repo.git" -> null
+      - id                          = "example_tf_repo" -> null
+      - is_template                 = false -> null
+      - merge_commit_message        = "PR_TITLE" -> null
+      - merge_commit_title          = "MERGE_MESSAGE" -> null
+      - name                        = "example_tf_repo" -> null
+      - node_id                     = "R_kgDOI2yMzQ" -> null
+      - private                     = true -> null
+      - repo_id                     = 594316493 -> null
+      - squash_merge_commit_message = "COMMIT_MESSAGES" -> null
+      - squash_merge_commit_title   = "COMMIT_OR_PR_TITLE" -> null
+      - ssh_clone_url               = "git@github.com:JavaCodeStream/example_tf_repo.git" -> null
+      - svn_url                     = "https://github.com/JavaCodeStream/example_tf_repo" -> null
+      - visibility                  = "private" -> null
+      - vulnerability_alerts        = false -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Changes to Outputs:
+  - github_repo_id       = 594316493 -> null
+  - github_ssh_clone_url = "git@github.com:JavaCodeStream/example_tf_repo.git" -> null
+
+Do you really want to destroy all resources?
+  Terraform will destroy all your managed infrastructure, as shown above.
+  There is no undo. Only 'yes' will be accepted to confirm.
+
+  Enter a value: yes
+
+github_repository.terraform_repo: Destroying... [id=example_tf_repo]
+github_repository.terraform_repo: Destruction complete after 1s
+
+Destroy complete! Resources: 1 destroyed.
+
+
+--------------------
+
+

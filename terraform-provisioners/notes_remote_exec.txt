@@ -1,0 +1,671 @@
+remote-exec
+===========================================================================
+https://www.terraform.io/language/resources/provisioners/remote-exec
+
+https://www.terraform.io/language/resources/provisioners/connection
+
+https://developer.hashicorp.com/terraform/language/resources/provisioners/connection#the-self-object
+
+- The remote-exec provisioner invokes a script on a remote resource after it is created. This can be 
+used to run a configuration management tool, bootstrap into a cluster, etc.
+
+- remote-exec provisioners require access to the remote resource via SSH or WinRM and expect a nested connection 
+block with details about how to connect.
+
+- add one or more connection blocks that describe how to access the remote resource. 
+
+    - Connection blocks don't take a block label and can be nested within either a resource 
+    or a provisioner.
+
+    - A connection block nested directly within a resource affects all of that resource's provisioners.
+
+    - A connection block nested in a provisioner block only affects that provisioner and overrides any 
+    resource-level connection settings.
+
+- The self Object
+    - Expressions in connection blocks cannot refer to their parent resource by name.
+
+    - References create dependencies, and referring to a resource by name within its own block 
+    would create a dependency cycle. 
+    
+    - Instead, expressions can use the self object, which represents the connection's parent 
+    resource and has all of that resource's attributes. 
+    For example, use self.public_ip to reference an aws_instance's public_ip attribute.
+
+- Terraform first create the EC2 instance, then it tries to connect the EC2 server using ssh with
+the provided connection details (here: using key-pair file) and run the inline commands.
+
+- First go to aws console (ec2 instances -> key-pair(left panel)) and create a key pair: terraform-key-pair
+    - Key pair type: RSA, Private key file format: .pem hit create key pair, this will download
+    the terraform-key-pair.pem file. 
+    - copy the pem file under working directory
+    - Note: if you face any issues (I didnt face), (on Mac) run chmod 400 terraform-key-pair.pem
+
+    - password for amazon linux2 machines are disables by default, hence we need the private key. so
+    we have to supply a private key file in connection sub-block within resource block for terraform to login 
+    to EC2 once its created.
+
+- whenever we create a EC2 instance without specifying the security group, which is what we did not
+defined a security group explicitly on our TF file aws_instance myec2 resource, in such case, AWS will
+associate the readily available default security group (sg-09821735d6cf83354 - default).
+
+    - Make sure that 'default' security group has SSH on port 22 from all IPs allowed for Inbound Traffic
+    for terraform to login using SSH connection
+    - Make sure that 'default' security group has HTTP on port 80 from all IPs allowed for Inbound Traffic
+
+- Before we run terraform apply, we need to make sure we use (install -y nginx1) as we are automating the
+entire process, otherwise we will be stuck in half way.
+
+main.tf
+-------
+provider "aws" {
+  region  = "ap-south-1"
+}
+
+resource "aws_instance" "myec2" {
+   ami = "ami-01a4f99c4ac11b03c"  # get it from console as per your aws region
+   instance_type = "t2.micro"
+   key_name = "terraform-key-pair"  # associate the key-pair to ec2
+
+   connection {
+        type     = "ssh"
+        user     = "ec2-user"
+        private_key = file("./terraform-key-pair.pem")
+        host     = self.public_ip  # public IP of EC2 instance once its available.
+    }
+
+    provisioner "remote-exec" {
+        inline = [
+            "sudo amazon-linux-extras install -y nginx1",
+            "sudo systemctl start nginx"
+        ]
+    }
+}
+
+
+$ export AWS_ACCESS_KEY_ID="<get from AWS console, generated during creation of user>"
+$ export AWS_SECRET_ACCESS_KEY="<get from AWS console, generated during creation of user>"
+
+$ terraform init
+$ terraform plan
+
+
+
+
+
+
+$ terraform apply -auto-approve
+$ terraform destroy -auto-approve
+
+$ terraform plan
+
+(base) Sandips-MacBook-Air:remote-exec sandip$ terraform plan 
+
+Terraform used the selected providers to generate the following execution plan. Resource actions 
+are indicated with the following
+symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_instance.myec2 will be created
+  + resource "aws_instance" "myec2" {
+      + ami                                  = "ami-01a4f99c4ac11b03c"
+      + arn                                  = (known after apply)
+      + associate_public_ip_address          = (known after apply)
+      + availability_zone                    = (known after apply)
+      + cpu_core_count                       = (known after apply)
+      + cpu_threads_per_core                 = (known after apply)
+      + disable_api_stop                     = (known after apply)
+      + disable_api_termination              = (known after apply)
+      + ebs_optimized                        = (known after apply)
+      + get_password_data                    = false
+      + host_id                              = (known after apply)
+      + host_resource_group_arn              = (known after apply)
+      + iam_instance_profile                 = (known after apply)
+      + id                                   = (known after apply)
+      + instance_initiated_shutdown_behavior = (known after apply)
+      + instance_state                       = (known after apply)
+      + instance_type                        = "t2.micro"
+      + ipv6_address_count                   = (known after apply)
+      + ipv6_addresses                       = (known after apply)
+      + key_name                             = "terraform-key-pair"
+      + monitoring                           = (known after apply)
+      + outpost_arn                          = (known after apply)
+      + password_data                        = (known after apply)
+      + placement_group                      = (known after apply)
+      + placement_partition_number           = (known after apply)
+      + primary_network_interface_id         = (known after apply)
+      + private_dns                          = (known after apply)
+      + private_ip                           = (known after apply)
+      + public_dns                           = (known after apply)
+      + public_ip                            = (known after apply)
+      + secondary_private_ips                = (known after apply)
+      + security_groups                      = (known after apply)
+      + source_dest_check                    = true
+      + subnet_id                            = (known after apply)
+      + tags_all                             = (known after apply)
+      + tenancy                              = (known after apply)
+      + user_data                            = (known after apply)
+      + user_data_base64                     = (known after apply)
+      + user_data_replace_on_change          = false
+      + vpc_security_group_ids               = (known after apply)
+
+      + capacity_reservation_specification {
+          + capacity_reservation_preference = (known after apply)
+
+          + capacity_reservation_target {
+              + capacity_reservation_id                 = (known after apply)
+              + capacity_reservation_resource_group_arn = (known after apply)
+            }
+        }
+
+      + ebs_block_device {
+          + delete_on_termination = (known after apply)
+          + device_name           = (known after apply)
+          + encrypted             = (known after apply)
+          + iops                  = (known after apply)
+          + kms_key_id            = (known after apply)
+          + snapshot_id           = (known after apply)
+          + tags                  = (known after apply)
+          + throughput            = (known after apply)
+          + volume_id             = (known after apply)
+          + volume_size           = (known after apply)
+          + volume_type           = (known after apply)
+        }
+
+      + enclave_options {
+          + enabled = (known after apply)
+        }
+
+      + ephemeral_block_device {
+          + device_name  = (known after apply)
+          + no_device    = (known after apply)
+          + virtual_name = (known after apply)
+        }
+
+      + maintenance_options {
+          + auto_recovery = (known after apply)
+        }
+
+      + metadata_options {
+          + http_endpoint               = (known after apply)
+          + http_put_response_hop_limit = (known after apply)
+          + http_tokens                 = (known after apply)
+          + instance_metadata_tags      = (known after apply)
+        }
+
+      + network_interface {
+          + delete_on_termination = (known after apply)
+          + device_index          = (known after apply)
+          + network_card_index    = (known after apply)
+          + network_interface_id  = (known after apply)
+        }
+
+      + private_dns_name_options {
+          + enable_resource_name_dns_a_record    = (known after apply)
+          + enable_resource_name_dns_aaaa_record = (known after apply)
+          + hostname_type                        = (known after apply)
+        }
+
+      + root_block_device {
+          + delete_on_termination = (known after apply)
+          + device_name           = (known after apply)
+          + encrypted             = (known after apply)
+          + iops                  = (known after apply)
+          + kms_key_id            = (known after apply)
+          + tags                  = (known after apply)
+          + throughput            = (known after apply)
+          + volume_id             = (known after apply)
+          + volume_size           = (known after apply)
+          + volume_type           = (known after apply)
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + myec2_key       = "terraform-key-pair"
+  + myec2_public_ip = (known after apply)
+
+───────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't guarantee to take 
+exactly these actions if you run "terraform
+apply" now.
+
+
+
+
+
+$ terraform apply -auto-approve
+
+Terraform used the selected providers to generate the following execution plan. Resource 
+actions are indicated with the following
+symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_instance.myec2 will be created
+  + resource "aws_instance" "myec2" {
+      + ami                                  = "ami-01a4f99c4ac11b03c"
+      + arn                                  = (known after apply)
+      + associate_public_ip_address          = (known after apply)
+      + availability_zone                    = (known after apply)
+      + cpu_core_count                       = (known after apply)
+      + cpu_threads_per_core                 = (known after apply)
+      + disable_api_stop                     = (known after apply)
+      + disable_api_termination              = (known after apply)
+      + ebs_optimized                        = (known after apply)
+      + get_password_data                    = false
+      + host_id                              = (known after apply)
+      + host_resource_group_arn              = (known after apply)
+      + iam_instance_profile                 = (known after apply)
+      + id                                   = (known after apply)
+      + instance_initiated_shutdown_behavior = (known after apply)
+      + instance_state                       = (known after apply)
+      + instance_type                        = "t2.micro"
+      + ipv6_address_count                   = (known after apply)
+      + ipv6_addresses                       = (known after apply)
+      + key_name                             = "terraform-key-pair"
+      + monitoring                           = (known after apply)
+      + outpost_arn                          = (known after apply)
+      + password_data                        = (known after apply)
+      + placement_group                      = (known after apply)
+      + placement_partition_number           = (known after apply)
+      + primary_network_interface_id         = (known after apply)
+      + private_dns                          = (known after apply)
+      + private_ip                           = (known after apply)
+      + public_dns                           = (known after apply)
+      + public_ip                            = (known after apply)
+      + secondary_private_ips                = (known after apply)
+      + security_groups                      = (known after apply)
+      + source_dest_check                    = true
+      + subnet_id                            = (known after apply)
+      + tags_all                             = (known after apply)
+      + tenancy                              = (known after apply)
+      + user_data                            = (known after apply)
+      + user_data_base64                     = (known after apply)
+      + user_data_replace_on_change          = false
+      + vpc_security_group_ids               = (known after apply)
+
+      + capacity_reservation_specification {
+          + capacity_reservation_preference = (known after apply)
+
+          + capacity_reservation_target {
+              + capacity_reservation_id                 = (known after apply)
+              + capacity_reservation_resource_group_arn = (known after apply)
+            }
+        }
+
+      + ebs_block_device {
+          + delete_on_termination = (known after apply)
+          + device_name           = (known after apply)
+          + encrypted             = (known after apply)
+          + iops                  = (known after apply)
+          + kms_key_id            = (known after apply)
+          + snapshot_id           = (known after apply)
+          + tags                  = (known after apply)
+          + throughput            = (known after apply)
+          + volume_id             = (known after apply)
+          + volume_size           = (known after apply)
+          + volume_type           = (known after apply)
+        }
+
+      + enclave_options {
+          + enabled = (known after apply)
+        }
+
+      + ephemeral_block_device {
+          + device_name  = (known after apply)
+          + no_device    = (known after apply)
+          + virtual_name = (known after apply)
+        }
+
+      + maintenance_options {
+          + auto_recovery = (known after apply)
+        }
+
+      + metadata_options {
+          + http_endpoint               = (known after apply)
+          + http_put_response_hop_limit = (known after apply)
+          + http_tokens                 = (known after apply)
+          + instance_metadata_tags      = (known after apply)
+        }
+
+      + network_interface {
+          + delete_on_termination = (known after apply)
+          + device_index          = (known after apply)
+          + network_card_index    = (known after apply)
+          + network_interface_id  = (known after apply)
+        }
+
+      + private_dns_name_options {
+          + enable_resource_name_dns_a_record    = (known after apply)
+          + enable_resource_name_dns_aaaa_record = (known after apply)
+          + hostname_type                        = (known after apply)
+        }
+
+      + root_block_device {
+          + delete_on_termination = (known after apply)
+          + device_name           = (known after apply)
+          + encrypted             = (known after apply)
+          + iops                  = (known after apply)
+          + kms_key_id            = (known after apply)
+          + tags                  = (known after apply)
+          + throughput            = (known after apply)
+          + volume_id             = (known after apply)
+          + volume_size           = (known after apply)
+          + volume_type           = (known after apply)
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + myec2_key       = "terraform-key-pair"
+  + myec2_public_ip = (known after apply)
+aws_instance.myec2: Creating...
+aws_instance.myec2: Still creating... [10s elapsed]
+aws_instance.myec2: Still creating... [20s elapsed]
+aws_instance.myec2: Still creating... [30s elapsed]
+aws_instance.myec2: Provisioning with 'remote-exec'...
+aws_instance.myec2 (remote-exec): Connecting to remote host via SSH...
+aws_instance.myec2 (remote-exec):   Host: 3.110.86.231
+aws_instance.myec2 (remote-exec):   User: ec2-user
+aws_instance.myec2 (remote-exec):   Password: false
+aws_instance.myec2 (remote-exec):   Private key: true
+aws_instance.myec2 (remote-exec):   Certificate: false
+aws_instance.myec2 (remote-exec):   SSH Agent: true
+aws_instance.myec2 (remote-exec):   Checking Host Key: false
+aws_instance.myec2 (remote-exec):   Target Platform: unix
+aws_instance.myec2 (remote-exec): Connected!
+aws_instance.myec2 (remote-exec): Installing nginx
+aws_instance.myec2 (remote-exec): Loaded plugins: extras_suggestions,
+aws_instance.myec2 (remote-exec):               : langpacks, priorities,
+aws_instance.myec2 (remote-exec):               : update-motd
+aws_instance.myec2 (remote-exec): Existing lock /var/run/yum.pid: another copy is running as pid 3187.
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  94 M RSS (387 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 21:51:58 2023 - 00:05 ago
+aws_instance.myec2 (remote-exec):     State  : Running, pid: 3187
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  97 M RSS (390 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 21:51:58 2023 - 00:07 ago
+aws_instance.myec2 (remote-exec):     State  : Running, pid: 3187
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory : 173 M RSS (466 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 21:51:58 2023 - 00:09 ago
+aws_instance.myec2 (remote-exec):     State  : Running, pid: 3187
+aws_instance.myec2: Still creating... [40s elapsed]
+aws_instance.myec2 (remote-exec): Cleaning repos: amzn2-core
+aws_instance.myec2 (remote-exec):      ...: amzn2extra-docker
+aws_instance.myec2 (remote-exec):      ...: amzn2extra-kernel-5.10
+aws_instance.myec2 (remote-exec):      ...: amzn2extra-nginx1
+aws_instance.myec2 (remote-exec): 16 metadata files removed
+aws_instance.myec2 (remote-exec): 6 sqlite files removed
+aws_instance.myec2 (remote-exec): 0 metadata files removed
+aws_instance.myec2 (remote-exec): Loaded plugins: extras_suggestions,
+aws_instance.myec2 (remote-exec):               : langpacks, priorities,
+aws_instance.myec2 (remote-exec):               : update-motd
+aws_instance.myec2 (remote-exec): Existing lock /var/run/yum.pid: another copy is running as pid 3224.
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  36 M RSS (330 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 21:51:59 2023 - 00:12 ago
+aws_instance.myec2 (remote-exec):     State  : Running, pid: 3224
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  40 M RSS (333 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 21:51:59 2023 - 00:14 ago
+aws_instance.myec2 (remote-exec):     State  : Running, pid: 3224
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  42 M RSS (334 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 21:51:59 2023 - 00:16 ago
+aws_instance.myec2 (remote-exec):     State  : Running, pid: 3224
+aws_instance.myec2 (remote-exec): amzn2extra-nginx | 3.0 kB     00:00
+aws_instance.myec2 (remote-exec): (1/2): amzn2extra- |   76 B   00:00
+aws_instance.myec2 (remote-exec): (2/2): amzn2extra- |  60 kB   00:00
+aws_instance.myec2 (remote-exec): Resolving Dependencies
+aws_instance.myec2 (remote-exec): --> Running transaction check
+aws_instance.myec2 (remote-exec): ---> Package nginx.x86_64 1:1.22.1-1.amzn2.0.2 will be installed
+aws_instance.myec2 (remote-exec): --> Processing Dependency: nginx-filesystem = 1:1.22.1-1.amzn2.0.2 for package: 1:nginx-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Processing Dependency: nginx-core = 1:1.22.1-1.amzn2.0.2 for package: 1:nginx-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Running transaction check
+aws_instance.myec2 (remote-exec): ---> Package nginx-core.x86_64 1:1.22.1-1.amzn2.0.2 will be installed
+aws_instance.myec2 (remote-exec): --> Processing Dependency: libssl.so.1.1(OPENSSL_1_1_1)(64bit) for package: 1:nginx-core-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Processing Dependency: libssl.so.1.1(OPENSSL_1_1_0)(64bit) for package: 1:nginx-core-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Processing Dependency: libcrypto.so.1.1(OPENSSL_1_1_0)(64bit) for package: 1:nginx-core-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Processing Dependency: libssl.so.1.1()(64bit) for package: 1:nginx-core-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Processing Dependency: libprofiler.so.0()(64bit) for package: 1:nginx-core-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): --> Processing Dependency: libcrypto.so.1.1()(64bit) for package: 1:nginx-core-1.22.1-1.amzn2.0.2.x86_64
+aws_instance.myec2 (remote-exec): ---> Package nginx-filesystem.noarch 1:1.22.1-1.amzn2.0.2 will be installed
+aws_instance.myec2 (remote-exec): --> Running transaction check
+aws_instance.myec2 (remote-exec): ---> Package gperftools-libs.x86_64 0:2.6.1-1.amzn2 will be installed
+aws_instance.myec2 (remote-exec): ---> Package openssl11-libs.x86_64 1:1.1.1g-12.amzn2.0.9 will be installed
+aws_instance.myec2 (remote-exec): --> Processing Dependency: openssl11-pkcs11 for package: 1:openssl11-libs-1.1.1g-12.amzn2.0.9.x86_64
+aws_instance.myec2 (remote-exec): --> Running transaction check
+aws_instance.myec2 (remote-exec): ---> Package openssl11-pkcs11.x86_64 0:0.4.10-6.amzn2.0.1 will be installed
+aws_instance.myec2 (remote-exec): --> Finished Dependency Resolution
+
+aws_instance.myec2 (remote-exec): Dependencies Resolved
+
+aws_instance.myec2 (remote-exec): ========================================
+aws_instance.myec2 (remote-exec):  Package
+aws_instance.myec2 (remote-exec):        Arch   Version
+aws_instance.myec2 (remote-exec):                 Repository         Size
+aws_instance.myec2 (remote-exec): ========================================
+aws_instance.myec2 (remote-exec): Installing:
+aws_instance.myec2 (remote-exec):  nginx x86_64 1:1.22.1-1.amzn2.0.2
+aws_instance.myec2 (remote-exec):                 amzn2extra-nginx1  55 k
+aws_instance.myec2 (remote-exec): Installing for dependencies:
+aws_instance.myec2 (remote-exec):  gperftools-libs
+aws_instance.myec2 (remote-exec):        x86_64 2.6.1-1.amzn2
+aws_instance.myec2 (remote-exec):                 amzn2-core        274 k
+aws_instance.myec2 (remote-exec):  nginx-core
+aws_instance.myec2 (remote-exec):        x86_64 1:1.22.1-1.amzn2.0.2
+aws_instance.myec2 (remote-exec):                 amzn2extra-nginx1 559 k
+aws_instance.myec2 (remote-exec):  nginx-filesystem
+aws_instance.myec2 (remote-exec):        noarch 1:1.22.1-1.amzn2.0.2
+aws_instance.myec2 (remote-exec):                 amzn2extra-nginx1  25 k
+aws_instance.myec2 (remote-exec):  openssl11-libs
+aws_instance.myec2 (remote-exec):        x86_64 1:1.1.1g-12.amzn2.0.9
+aws_instance.myec2 (remote-exec):                 amzn2-core        1.4 M
+aws_instance.myec2 (remote-exec):  openssl11-pkcs11
+aws_instance.myec2 (remote-exec):        x86_64 0.4.10-6.amzn2.0.1
+aws_instance.myec2 (remote-exec):                 amzn2-core         61 k
+
+aws_instance.myec2 (remote-exec): Transaction Summary
+aws_instance.myec2 (remote-exec): ========================================
+aws_instance.myec2 (remote-exec): Install  1 Package (+5 Dependent packages)
+
+aws_instance.myec2 (remote-exec): Total download size: 2.4 M
+aws_instance.myec2 (remote-exec): Installed size: 6.7 M
+aws_instance.myec2 (remote-exec): Downloading packages:
+aws_instance.myec2 (remote-exec): (1/6): gperftools- | 274 kB   00:00
+aws_instance.myec2 (remote-exec): (2/6): nginx-1.22. |  55 kB   00:00
+aws_instance.myec2 (remote-exec): (3/6): nginx-core- | 559 kB   00:00
+aws_instance.myec2 (remote-exec): (4/6): nginx-files |  25 kB   00:00
+aws_instance.myec2: Still creating... [50s elapsed]
+aws_instance.myec2 (remote-exec): (5/6): openssl11-p |  61 kB   00:00
+aws_instance.myec2 (remote-exec): (6/6): openssl11-l | 1.4 MB   00:00
+aws_instance.myec2 (remote-exec): ----------------------------------------
+aws_instance.myec2 (remote-exec): Total      7.4 MB/s | 2.4 MB  00:00
+aws_instance.myec2 (remote-exec): Running transaction check
+aws_instance.myec2 (remote-exec): Running transaction test
+aws_instance.myec2 (remote-exec): Transaction test succeeded
+aws_instance.myec2 (remote-exec): Running transaction
+aws_instance.myec2 (remote-exec):   Installing : openssl1 [         ] 1/6
+aws_instance.myec2 (remote-exec):   Installing : openssl1 [###      ] 1/6
+aws_instance.myec2 (remote-exec):   Installing : openssl1 [####     ] 1/6
+aws_instance.myec2 (remote-exec):   Installing : openssl1 [#######  ] 1/6
+aws_instance.myec2 (remote-exec):   Installing : openssl1 [######## ] 1/6
+aws_instance.myec2 (remote-exec):   Installing : openssl11-pkcs11-0   1/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [         ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [#        ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [##       ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [###      ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [####     ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [#####    ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [######   ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [#######  ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openss [######## ] 2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:openssl11-libs-1   2/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [         ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [##       ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [###      ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [####     ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [#####    ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [######   ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [#######  ] 3/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx-filesystem   3/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [         ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [#        ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [##       ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [###      ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [####     ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [#####    ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [######   ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [#######  ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftoo [######## ] 4/6
+aws_instance.myec2 (remote-exec):   Installing : gperftools-libs-2.   4/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [         ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [#        ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [##       ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [###      ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [####     ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [#####    ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [######   ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [#######  ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [######## ] 5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx-core-1.22.   5/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [         ] 6/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [#        ] 6/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [####     ] 6/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx- [######## ] 6/6
+aws_instance.myec2 (remote-exec):   Installing : 1:nginx-1.22.1-1.a   6/6
+aws_instance.myec2 (remote-exec):   Verifying  : gperftools-libs-2.   1/6
+aws_instance.myec2 (remote-exec):   Verifying  : 1:nginx-filesystem   2/6
+aws_instance.myec2 (remote-exec):   Verifying  : 1:nginx-1.22.1-1.a   3/6
+aws_instance.myec2 (remote-exec):   Verifying  : 1:nginx-core-1.22.   4/6
+aws_instance.myec2 (remote-exec):   Verifying  : 1:openssl11-libs-1   5/6
+aws_instance.myec2 (remote-exec):   Verifying  : openssl11-pkcs11-0   6/6
+
+aws_instance.myec2 (remote-exec): Installed:
+aws_instance.myec2 (remote-exec):   nginx.x86_64 1:1.22.1-1.amzn2.0.2
+
+aws_instance.myec2 (remote-exec): Dependency Installed:
+aws_instance.myec2 (remote-exec):   gperftools-libs.x86_64 0:2.6.1-1.amzn2
+aws_instance.myec2 (remote-exec):   nginx-core.x86_64 1:1.22.1-1.amzn2.0.2
+aws_instance.myec2 (remote-exec):   nginx-filesystem.noarch 1:1.22.1-1.amzn2.0.2
+aws_instance.myec2 (remote-exec):   openssl11-libs.x86_64 1:1.1.1g-12.amzn2.0.9
+aws_instance.myec2 (remote-exec):   openssl11-pkcs11.x86_64 0:0.4.10-6.amzn2.0.1
+
+aws_instance.myec2 (remote-exec): Complete!
+aws_instance.myec2 (remote-exec):   0  ansible2                 available    \
+aws_instance.myec2 (remote-exec):         [ =2.4.2  =2.4.6  =2.8  =stable ]
+aws_instance.myec2 (remote-exec):   2  httpd_modules            available    [ =1.0  =stable ]
+aws_instance.myec2 (remote-exec):   3  memcached1.5             available    \
+aws_instance.myec2 (remote-exec):         [ =1.5.1  =1.5.16  =1.5.17 ]
+aws_instance.myec2 (remote-exec):   6  postgresql10             available    [ =10  =stable ]
+aws_instance.myec2 (remote-exec):   9  R3.4                     available    [ =3.4.3  =stable ]
+aws_instance.myec2 (remote-exec):  10  rust1                    available    \
+aws_instance.myec2 (remote-exec):         [ =1.22.1  =1.26.0  =1.26.1  =1.27.2  =1.31.0  =1.38.0
+aws_instance.myec2 (remote-exec):           =stable ]
+aws_instance.myec2 (remote-exec):  18  libreoffice              available    \
+aws_instance.myec2 (remote-exec):         [ =5.0.6.2_15  =5.3.6.1  =stable ]
+aws_instance.myec2 (remote-exec):  19  gimp                     available    [ =2.8.22 ]
+aws_instance.myec2 (remote-exec):  20  docker=latest            enabled      \
+aws_instance.myec2 (remote-exec):         [ =17.12.1  =18.03.1  =18.06.1  =18.09.9  =stable ]
+aws_instance.myec2 (remote-exec):  21  mate-desktop1.x          available    \
+aws_instance.myec2 (remote-exec):         [ =1.19.0  =1.20.0  =stable ]
+aws_instance.myec2 (remote-exec):  22  GraphicsMagick1.3        available    \
+aws_instance.myec2 (remote-exec):         [ =1.3.29  =1.3.32  =1.3.34  =stable ]
+aws_instance.myec2 (remote-exec):  23  tomcat8.5                available    \
+aws_instance.myec2 (remote-exec):         [ =8.5.31  =8.5.32  =8.5.38  =8.5.40  =8.5.42  =8.5.50
+aws_instance.myec2 (remote-exec):           =stable ]
+aws_instance.myec2 (remote-exec):  24  epel                     available    [ =7.11  =stable ]
+aws_instance.myec2 (remote-exec):  25  testing                  available    [ =1.0  =stable ]
+aws_instance.myec2 (remote-exec):  26  ecs                      available    [ =stable ]
+aws_instance.myec2 (remote-exec):  27  corretto8                available    \
+aws_instance.myec2 (remote-exec):         [ =1.8.0_192  =1.8.0_202  =1.8.0_212  =1.8.0_222  =1.8.0_232
+aws_instance.myec2 (remote-exec):           =1.8.0_242  =stable ]
+aws_instance.myec2 (remote-exec):  29  golang1.11               available    \
+aws_instance.myec2 (remote-exec):         [ =1.11.3  =1.11.11  =1.11.13  =stable ]
+aws_instance.myec2 (remote-exec):  30  squid4                   available    [ =4  =stable ]
+aws_instance.myec2 (remote-exec):  32  lustre2.10               available    \
+aws_instance.myec2 (remote-exec):         [ =2.10.5  =2.10.8  =stable ]
+aws_instance.myec2 (remote-exec):  33  java-openjdk11           available    [ =11  =stable ]
+aws_instance.myec2 (remote-exec):  34  lynis                    available    [ =stable ]
+aws_instance.myec2 (remote-exec):  36  BCC                      available    [ =0.x  =stable ]
+aws_instance.myec2 (remote-exec):  37  mono                     available    [ =5.x  =stable ]
+aws_instance.myec2 (remote-exec):  38  nginx1=latest            enabled      [ =stable ]
+aws_instance.myec2 (remote-exec):  39  ruby2.6                  available    [ =2.6  =stable ]
+aws_instance.myec2 (remote-exec):  40  mock                     available    [ =stable ]
+aws_instance.myec2 (remote-exec):  41  postgresql11             available    [ =11  =stable ]
+aws_instance.myec2 (remote-exec):  43  livepatch                available    [ =stable ]
+aws_instance.myec2 (remote-exec):  44  python3.8                available    [ =stable ]
+aws_instance.myec2 (remote-exec):  45  haproxy2                 available    [ =stable ]
+aws_instance.myec2 (remote-exec):  46  collectd                 available    [ =stable ]
+aws_instance.myec2 (remote-exec):  47  aws-nitro-enclaves-cli   available    [ =stable ]
+aws_instance.myec2 (remote-exec):  48  R4                       available    [ =stable ]
+aws_instance.myec2 (remote-exec):   _  kernel-5.4               available    [ =stable ]
+aws_instance.myec2 (remote-exec):  50  selinux-ng               available    [ =stable ]
+aws_instance.myec2 (remote-exec):  51  php8.0                   available    [ =stable ]
+aws_instance.myec2 (remote-exec):  52  tomcat9                  available    [ =stable ]
+aws_instance.myec2 (remote-exec):  53  unbound1.13              available    [ =stable ]
+aws_instance.myec2 (remote-exec):  54  mariadb10.5              available    [ =stable ]
+aws_instance.myec2 (remote-exec):  55  kernel-5.10=latest       enabled      [ =stable ]
+aws_instance.myec2 (remote-exec):  56  redis6                   available    [ =stable ]
+aws_instance.myec2 (remote-exec):  57  ruby3.0                  available    [ =stable ]
+aws_instance.myec2 (remote-exec):  58  postgresql12             available    [ =stable ]
+aws_instance.myec2 (remote-exec):  59  postgresql13             available    [ =stable ]
+aws_instance.myec2 (remote-exec):  60  mock2                    available    [ =stable ]
+aws_instance.myec2 (remote-exec):  61  dnsmasq2.85              available    [ =stable ]
+aws_instance.myec2 (remote-exec):  62  kernel-5.15              available    [ =stable ]
+aws_instance.myec2 (remote-exec):  63  postgresql14             available    [ =stable ]
+aws_instance.myec2 (remote-exec):  64  firefox                  available    [ =stable ]
+aws_instance.myec2 (remote-exec):  65  lustre                   available    [ =stable ]
+aws_instance.myec2 (remote-exec):  66  php8.1                   available    [ =stable ]
+aws_instance.myec2 (remote-exec):  67  awscli1                  available    [ =stable ]
+aws_instance.myec2: Creation complete after 52s [id=i-01036f8cfb9d7a66f]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+myec2_key = "terraform-key-pair"
+myec2_public_ip = "3.110.86.231"
+
+
+
+- Here, we will see that once the EC2 instance is created it goes to remote-exec provisioner.
+the logs for reference:
+
+aws_instance.myec2: Provisioning with 'remote-exec'...
+aws_instance.myec2 (remote-exec): Connecting to remote host via SSH...
+aws_instance.myec2 (remote-exec):   Host: 3.110.86.231
+aws_instance.myec2 (remote-exec):   User: ec2-user
+aws_instance.myec2 (remote-exec):   Password: false
+aws_instance.myec2 (remote-exec):   Private key: true
+aws_instance.myec2 (remote-exec):   Certificate: false
+aws_instance.myec2 (remote-exec):   SSH Agent: true
+aws_instance.myec2 (remote-exec):   Checking Host Key: false
+aws_instance.myec2 (remote-exec):   Target Platform: unix
+aws_instance.myec2 (remote-exec): Connected!
+aws_instance.myec2 (remote-exec): Installing nginx
+
+
+
+- Now copy the public IP of the newly created EC2 instaance and paste on browser will show 
+the Ngins home page: "Welcome to nginx!"
+
+
+$ terraform destroy -auto-approve
+
+Destroy complete! Resources: 1 destroyed.

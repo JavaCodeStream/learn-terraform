@@ -1,0 +1,20 @@
+Terraform Provisioners
+=====================================
+- Till now, we used terraform to create AWS instance i.e. EC2 on aws. but that EC2 instance is empty. it does
+not have any web server software (ex: nginx, apache etc) installed.
+
+- what if we want a complete end to end sollution such that terraform not only creates
+EC2 instance but it should also automatically configure a specific application, in our example
+a web server in the newly created EC2 instance, so that once the instance is UP, our server is also
+live to server request.
+
+- Provisioners are used to execute scripts on a local or remote machine as part of resource creation or
+destruction.
+ex: on creation of EC2, execute script which will install Nginx web server.
+
+Provisioner Types
+=====================================
+- remote-exec
+- local-exec
+- null_resource
+- etc.

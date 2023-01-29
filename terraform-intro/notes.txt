@@ -7,6 +7,9 @@ Study Guide - Terraform Associate Certification (002)
 https://developer.hashicorp.com/terraform/tutorials/certification/associate-study
 
 
+Terraform Udemy Github:
+https://github.com/zealvora/terraform-beginner-to-advanced-resource
+
 Types of IAC Tools
 ---------------------
 1. Configuration Management tool:
@@ -87,3 +90,24 @@ Enable tab completion:
 first ensure that a config file exists for your chosen shell.
 - touch ~/.bashrc
 - terraform -install-autocomplete
+
+
+How Terraform Applies a Configuration
+========================================
+- When Terraform creates a new infrastructure object represented by a resource block, 
+the identifier for that real object is saved in Terraform's state, allowing it to be 
+updated and destroyed in response to future changes.
+
+- For resource blocks that already have an associated infrastructure object in the state, 
+Terraform compares the actual configuration of the object with the arguments given in the 
+configuration and, if necessary, updates the object to match the configuration.
+
+- In summary, applying a Terraform configuration will:
+    - Create resources that exist in the configuration but are not associated 
+    with a real infrastructure object in the state.
+    - Destroy resources that exist in the state but no longer exist in the configuration.
+    - Update in-place resources whose arguments have changed.
+    - Destroy and re-create resources whose arguments have changed but which cannot 
+    be updated in-place due to remote API limitations.
+
+    

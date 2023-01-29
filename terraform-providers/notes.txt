@@ -10,11 +10,121 @@ providers that we used to create a local file on our local desktop.
 - terraform providers are distributed by hashicorp and publicly available under terraform
 registry (https://registry.terraform.io/)
 
+
+How Terraform provider works?
+--------------------------------
+- once we create the tf config files, terraform interacts with the target infra 
+platform (as per the respective provider used) with its provider communicating via Infra
+provisioning APIs.
+
+
+Provider Versioning
+--------------------------------
+- Each provider plugins are release separately from Terraform itself. ex: aws provider version () keeps
+on moving with newer functionalities/fixes but terraform has its own version (ex: 0.13)
+
+- Provider releases are separate from Terraform CLI releases, so not all providers are available for 
+all platforms. Other versions of this provider may have different platforms supported.
+
+- during terraform init, if the provider version is not specified, then the most recent version gets
+downloaded inside <working_dir>/.terraform/providers
+
+- for production use, we should explicitly constrain the acceptable provider version to ensure
+new versions with breaking changes does not get automatically installed.
+
+
+terraform {
+  required_providers {
+    random = {
+      source = "hashicorp/random"
+      version = "~> 3.3.0"
+    }
+  }
+}
+
+
+Version Number Arguments
+---------------------------
+>=1.0           greater than equal to the version
+<=1.0           less than equal to the version
+~>2.0           any version in 2.x range only i.e. 2.0 till 2.<max>
+~> 3.3.0        3.1.x range i.e. 3.3.0 till 3.3.<max>
+>=2.10,<=2.30   any version between 2.10 and 2.30
+
+- its better to use complete version number ex: 2.27.1
+
+- if used any of above types of version contraint arguments, we can see the exact version 
+being downloaded vs what versiuon contraints being used in the .terraform.lock.hcl file.
+
+provider "registry.terraform.io/hashicorp/random" {
+  version     = "3.3.2"
+  constraints = "~> 3.3.0"
+  hashes = [
+..
+.
+
+- .terraform.lock.hcl file locks down the first version downloaded and prevents changing the version
+in provider version section in tf file to any other version.
+
+ex:
+changing the version to "~> 3.4.0" (higher)/"~> 3.2.0" (lower) from "~> 3.3.0" will resulte error:
+
+"locked provider
+│ registry.terraform.io/hashicorp/random 3.3.2 does not match configured version constraint ~> 3.4.0"
+
+terraform {
+  required_providers {
+    random = {
+      source = "hashicorp/random"
+      version = "~> 3.4.0"
+    }
+  }
+}
+
+
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Reusing previous version of hashicorp/random from the dependency lock file
+╷
+│ Error: Failed to query available provider packages
+│ 
+│ Could not retrieve the list of available versions for provider hashicorp/random: locked provider
+│ registry.terraform.io/hashicorp/random 3.3.2 does not match configured version constraint ~> 3.4.0; must use terraform init -upgrade
+│ to allow selection of new versions
+
+
+
+- use "terraform init -upgrade" to override the earlier locked provider version to a new version. 
+keep the new version on main.tf i.e. version = "~> 3.2.0" 
+where, earlier was 
+version     = "3.3.2"
+constraints = "~> 3.3.0" 
+
+
+
+$ terraform init -upgrade
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding hashicorp/random versions matching "~> 3.4.0"...
+- Installing hashicorp/random v3.4.3...
+- Installed hashicorp/random v3.4.3 (signed by HashiCorp)
+
+
+
+
+Type of Providers
+--------------------------------
 - there are 2 tiers of providers
     - Official: These are owned and maintained by hashicorp. incl the major cloud providers AWS, 
-    Azure, GCP etc and the Local provider.
-    - Verified: Owned and maintained by third parrty tech company who have gone through a 
-    partner provider process with Hashicorp. ex: bigIP provider from Fy network, heroku, digitalocean.
+    Azure, GCP etc and the Local/Random/Null provider.
+    - Verified/Partner: Owned and maintained by third party tech company who have gone through a 
+    partner provider process with Hashicorp. ex: github, bigIP provider from Fy network, 
+    heroku, digitalocean.
     - Community: published and maintained by individual contributers of the hashicorp community.
 
 - terraform init command shows the version of the plugins that is being installed.
@@ -47,6 +157,171 @@ registry.terraform.io/hashicorp/local , if not mentioned, defaulted to registry.
 - The Offcial provider plugins are contiously being upgraded bringing newer functionalities 
 or bug fixes, hence can inject breaking changes to our tf config codes.
 - we should lock down provider plugin version by specifying the version.
+
+
+required_providers/required_version block in terraform block
+=============================================================
+- the terraform block is optional.
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+
+  required_version = ">= 1.2.0"
+}
+
+- the required_providers block is also optional for terraform maintained providers (Official) 
+BUT from 0.13 ver. of terraform onwards its mandatory for Verified/Community type of 
+tarraform providers (ex: digital ocean).
+
+- required_version to explicitly add the tarraform version used.
+
+ex:
+https://registry.terraform.io/providers/digitalocean/digitalocean/latest
+
+main.tf
+--------
+provider "digitalocean" {
+  
+}
+
+resource "random_pet" "my-pet" {
+  prefix    = "Mrs"
+  separator = "."
+  length    = 1
+}
+
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/random...
+- Finding latest version of hashicorp/digitalocean...
+- Installing hashicorp/random v3.4.3...
+- Installed hashicorp/random v3.4.3 (signed by HashiCorp)
+╷
+│ Error: Failed to query available provider packages
+
+- So since we did not add required_providers sub block within terraform block, it fails.
+
+After adding:
+
+terraform {
+  required_providers {
+    digitalocean = {
+      source = "digitalocean/digitalocean"
+      version = "2.25.2"
+    }
+  }
+}
+
+provider "digitalocean" {}
+
+resource "random_pet" "my-pet" {
+  prefix    = "Mrs"
+  separator = "."
+  length    = 1
+}
+
+---------
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/random...
+- Finding digitalocean/digitalocean versions matching "2.25.2"...
+- Installing hashicorp/random v3.4.3...
+- Installed hashicorp/random v3.4.3 (signed by HashiCorp)
+- Installing digitalocean/digitalocean v2.25.2...
+- Installed digitalocean/digitalocean v2.25.2 (signed by a HashiCorp partner, key ID F82037E524B9C0E8)
+
+Terraform has been successfully initialized!
+--------
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           ├── digitalocean
+│           │   └── digitalocean
+│           │       └── 2.25.2
+│           │           └── darwin_arm64
+│           │               ├── CHANGELOG.md
+│           │               ├── LICENSE
+│           │               ├── README.md
+│           │               └── terraform-provider-digitalocean_v2.25.2
+│           └── hashicorp
+│               └── random
+│                   └── 3.4.3
+│                       └── darwin_arm64
+│                           └── terraform-provider-random_v3.4.3_x5
+├── .terraform.lock.hcl
+└── main.tf
+
+
+- Its good practice to add required_providers sub-block within terraform block for every 
+providers with appropriate version.
+
+
+
+provider block
+=================
+- we use the provider block to define which provider to be used on our tf files.
+
+ex:
+provider "github" {
+  # Configuration authN
+}
+
+
+provider "aws" {
+  # Configuration authN
+}
+
+
+- this provider block is mainly used to authenticate terraform run with its provider platform and the
+authN parameters also differes based on different providers
+
+- Even each provider has multiple ways to authenticate with its provider API and documented on its
+registry.terraform.io page.
+
+ex: 
+for GitHub
+
+provider "github" {
+  token = var.token # or `GITHUB_TOKEN`
+}
+
+for AWS
+
+provider "aws" {
+  region     = "us-west-2"
+  access_key = "my-access-key"
+  secret_key = "my-secret-key"
+}
+
+Or using by setting env variables.
+
+provider "aws" {
+  region     = "us-west-2"
+}
+
+$ export AWS_ACCESS_KEY_ID="anaccesskey"
+$ export AWS_SECRET_ACCESS_KEY="asecretkey"
+
+
+Or even using Shared AWS Credentials Files:
+$HOME/.aws/credentials on Linux and macOS
+"%USERPROFILE%\.aws\credentials" on Windows.
+
+
 
 
 Using terraform working directory

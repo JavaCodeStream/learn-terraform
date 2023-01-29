@@ -1,0 +1,554 @@
+Provisioner Failure Behaviour
+=================================================================
+- by default, Provisioners that fail, will also cause the respective terraform apply to FAIL.
+
+- on_failure settings inside provisioner sub-block can be used to change the behaviour.
+    - allowed values:
+        - on_failure = continue : Ignore the error and continue with creation or destruction.
+        - on_failure = fail : Raise an Error and Stop applying (the default behaviour), If this is 
+        creation provisioner, then taint the resource.
+
+- terraform also marks the instance status as tainted in terraform.tfstate file. "status": "tainted", BUT
+the EC2 instance get created and running on AWS.
+
+- NOTE: for the resources marked tainted on tfstate file, next terraform apply will force a destroy and 
+followed by create action on the resource.
+
+provisioner "remote-exec" {
+    on_failure = continue
+    inline = [
+    "sudo yum -y install nano"
+    ]
+}
+
+
+Hands-On
+---------------------------------------------
+- First go to aws console (ec2 instances -> key-pair(left panel)) and create a key pair: terraform-key-pair
+    - Key pair type: RSA, Private key file format: .pem hit create key pair, this will download
+    the terraform-key-pair.pem file. 
+    - copy the pem file under working directory
+    - Note: if you face any issues (I didnt face), (on Mac) run chmod 400 terraform-key-pair.pem
+
+- egress rule block is removed intentionally, to ensure the Creation-Time remote-exec provisioner 
+fails to install nano as the instance will not be able to communicate with internet.
+
+- terraform apply fails throwing error: "aws_instance.myec2 (remote-exec): Cannot find a valid 
+baseurl for repo: amzn2-core/2/x86_64"
+
+
+$ export AWS_ACCESS_KEY_ID="<>"
+$ export AWS_SECRET_ACCESS_KEY="<>"
+
+
+main.tf
+--------
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_security_group" "allow_ssh" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound traffic"
+
+  ingress {
+    description = "SSH into VPC"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  # egress block is removed intentionally, to ensure the Creation-Time remote-exec provisioner 
+  # fails to connect upstreams for installing nano
+}
+
+resource "aws_instance" "myec2" {
+  ami           = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+  instance_type = "t2.micro"
+  key_name      = "terraform-key-pair" # associate the key-pair to ec2, created separated on aws console
+
+  vpc_security_group_ids = [aws_security_group.allow_ssh.id] # expression dependency for security group
+
+  provisioner "remote-exec" {
+    # by default creation-time provisioner
+    #on_failure = continue    # first comment and run terraform apply to see failure.
+    inline = [
+      "echo +++++ Creation-Time remote-exec provisioner (FAILURE TEST) running!!! ++++++",
+      "sudo yum -y install nano"    # install nano after EC2 is created.
+    ]
+  }
+
+  connection {
+    type        = "ssh"    # protocol for terraform to connect to EC2
+    user        = "ec2-user"    # user for EC2
+    private_key = file("./terraform-key-pair.pem")   # downloaded PEM file for the key-pair console.
+    host        = self.public_ip # public IP of EC2 instance once its available.
+  }
+}
+
+
+$ terraform apply -auto-approve
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following
+symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_instance.myec2 will be created
+  + resource "aws_instance" "myec2" {
+      + ami                                  = "ami-01a4f99c4ac11b03c"
+      + arn                                  = (known after apply)
+      + associate_public_ip_address          = (known after apply)
+      + availability_zone                    = (known after apply)
+      + cpu_core_count                       = (known after apply)
+      + cpu_threads_per_core                 = (known after apply)
+      + disable_api_stop                     = (known after apply)
+      + disable_api_termination              = (known after apply)
+      + ebs_optimized                        = (known after apply)
+      + get_password_data                    = false
+      + host_id                              = (known after apply)
+      + host_resource_group_arn              = (known after apply)
+      + iam_instance_profile                 = (known after apply)
+      + id                                   = (known after apply)
+      + instance_initiated_shutdown_behavior = (known after apply)
+      + instance_state                       = (known after apply)
+      + instance_type                        = "t2.micro"
+      + ipv6_address_count                   = (known after apply)
+      + ipv6_addresses                       = (known after apply)
+      + key_name                             = "terraform-key-pair"
+      + monitoring                           = (known after apply)
+      + outpost_arn                          = (known after apply)
+      + password_data                        = (known after apply)
+      + placement_group                      = (known after apply)
+      + placement_partition_number           = (known after apply)
+      + primary_network_interface_id         = (known after apply)
+      + private_dns                          = (known after apply)
+      + private_ip                           = (known after apply)
+      + public_dns                           = (known after apply)
+      + public_ip                            = (known after apply)
+      + secondary_private_ips                = (known after apply)
+      + security_groups                      = (known after apply)
+      + source_dest_check                    = true
+      + subnet_id                            = (known after apply)
+      + tags_all                             = (known after apply)
+      + tenancy                              = (known after apply)
+      + user_data                            = (known after apply)
+      + user_data_base64                     = (known after apply)
+      + user_data_replace_on_change          = false
+      + vpc_security_group_ids               = (known after apply)
+
+      + capacity_reservation_specification {
+          + capacity_reservation_preference = (known after apply)
+
+          + capacity_reservation_target {
+              + capacity_reservation_id                 = (known after apply)
+              + capacity_reservation_resource_group_arn = (known after apply)
+            }
+        }
+
+      + ebs_block_device {
+          + delete_on_termination = (known after apply)
+          + device_name           = (known after apply)
+          + encrypted             = (known after apply)
+          + iops                  = (known after apply)
+          + kms_key_id            = (known after apply)
+          + snapshot_id           = (known after apply)
+          + tags                  = (known after apply)
+          + throughput            = (known after apply)
+          + volume_id             = (known after apply)
+          + volume_size           = (known after apply)
+          + volume_type           = (known after apply)
+        }
+
+      + enclave_options {
+          + enabled = (known after apply)
+        }
+
+      + ephemeral_block_device {
+          + device_name  = (known after apply)
+          + no_device    = (known after apply)
+          + virtual_name = (known after apply)
+        }
+
+      + maintenance_options {
+          + auto_recovery = (known after apply)
+        }
+
+      + metadata_options {
+          + http_endpoint               = (known after apply)
+          + http_put_response_hop_limit = (known after apply)
+          + http_tokens                 = (known after apply)
+          + instance_metadata_tags      = (known after apply)
+        }
+
+      + network_interface {
+          + delete_on_termination = (known after apply)
+          + device_index          = (known after apply)
+          + network_card_index    = (known after apply)
+          + network_interface_id  = (known after apply)
+        }
+
+      + private_dns_name_options {
+          + enable_resource_name_dns_a_record    = (known after apply)
+          + enable_resource_name_dns_aaaa_record = (known after apply)
+          + hostname_type                        = (known after apply)
+        }
+
+      + root_block_device {
+          + delete_on_termination = (known after apply)
+          + device_name           = (known after apply)
+          + encrypted             = (known after apply)
+          + iops                  = (known after apply)
+          + kms_key_id            = (known after apply)
+          + tags                  = (known after apply)
+          + throughput            = (known after apply)
+          + volume_id             = (known after apply)
+          + volume_size           = (known after apply)
+          + volume_type           = (known after apply)
+        }
+    }
+
+  # aws_security_group.allow_ssh will be created
+  + resource "aws_security_group" "allow_ssh" {
+      + arn                    = (known after apply)
+      + description            = "Allow SSH inbound traffic"
+      + egress                 = (known after apply)
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "SSH into VPC"
+              + from_port        = 22
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 22
+            },
+        ]
+      + name                   = "allow_ssh"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags_all               = (known after apply)
+      + vpc_id                 = (known after apply)
+    }
+
+Plan: 2 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + myec2_key        = "terraform-key-pair"
+  + myec2_private_ip = (known after apply)
+  + myec2_public_ip  = (known after apply)
+aws_security_group.allow_ssh: Creating...
+aws_security_group.allow_ssh: Creation complete after 1s [id=sg-0b9b9882bc07e25d3]
+aws_instance.myec2: Creating...
+aws_instance.myec2: Still creating... [10s elapsed]
+aws_instance.myec2: Still creating... [20s elapsed]
+aws_instance.myec2: Still creating... [30s elapsed]
+aws_instance.myec2: Provisioning with 'remote-exec'...
+aws_instance.myec2 (remote-exec): Connecting to remote host via SSH...
+aws_instance.myec2 (remote-exec):   Host: 65.2.171.75
+aws_instance.myec2 (remote-exec):   User: ec2-user
+aws_instance.myec2 (remote-exec):   Password: false
+aws_instance.myec2 (remote-exec):   Private key: true
+aws_instance.myec2 (remote-exec):   Certificate: false
+aws_instance.myec2 (remote-exec):   SSH Agent: true
+aws_instance.myec2 (remote-exec):   Checking Host Key: false
+aws_instance.myec2 (remote-exec):   Target Platform: unix
+aws_instance.myec2 (remote-exec): Connected!
+aws_instance.myec2 (remote-exec): +++++ Creation-Time remote-exec provisioner FAILURE TEST running!!! ++++++
+aws_instance.myec2 (remote-exec): Loaded plugins: extras_suggestions,
+aws_instance.myec2 (remote-exec):               : langpacks, priorities,
+aws_instance.myec2 (remote-exec):               : update-motd
+aws_instance.myec2 (remote-exec): Existing lock /var/run/yum.pid: another copy is running as pid 3207.
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:05 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:07 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:09 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:11 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2: Still creating... [40s elapsed]
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:13 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:15 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:17 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2 (remote-exec): Another app is currently holding the yum lock; waiting for it to exit...
+aws_instance.myec2 (remote-exec):   The other application is: yum
+aws_instance.myec2 (remote-exec):     Memory :  35 M RSS (328 MB VSZ)
+aws_instance.myec2 (remote-exec):     Started: Sat Jan 28 23:40:37 2023 - 00:19 ago
+aws_instance.myec2 (remote-exec):     State  : Sleeping, pid: 3207
+aws_instance.myec2: Still creating... [50s elapsed]
+aws_instance.myec2: Still creating... [1m0s elapsed]
+aws_instance.myec2 (remote-exec): Could not retrieve mirrorlist https://amazonlinux-2-repos-ap-south-1.s3.dualstack.ap-south-1.amazonaws.com/2/core/latest/x86_64/mirror.list error was
+aws_instance.myec2 (remote-exec): 12: Timeout on https://amazonlinux-2-repos-ap-south-1.s3.dualstack.ap-south-1.amazonaws.com/2/core/latest/x86_64/mirror.list: (28, 'Failed to connect to amazonlinux-2-repos-ap-south-1.s3.dualstack.ap-south-1.amazonaws.com port 443 after 2702 ms: Connection timed out')
+
+
+aws_instance.myec2 (remote-exec):  One of the configured repositories failed (Unknown),
+aws_instance.myec2 (remote-exec):  and yum doesn't have enough cached data to continue. At this point the only
+aws_instance.myec2 (remote-exec):  safe thing yum can do is fail. There are a few ways to work "fix" this:
+
+aws_instance.myec2 (remote-exec):      1. Contact the upstream for the repository and get them to fix the problem.
+
+aws_instance.myec2 (remote-exec):      2. Reconfigure the baseurl/etc. for the repository, to point to a working
+aws_instance.myec2 (remote-exec):         upstream. This is most often useful if you are using a newer
+aws_instance.myec2 (remote-exec):         distribution release than is supported by the repository (and the
+aws_instance.myec2 (remote-exec):         packages for the previous distribution release still work).
+
+aws_instance.myec2 (remote-exec):      3. Run the command with the repository temporarily disabled
+aws_instance.myec2 (remote-exec):             yum --disablerepo=<repoid> ...
+
+aws_instance.myec2 (remote-exec):      4. Disable the repository permanently, so yum won't use it by default. Yum
+aws_instance.myec2 (remote-exec):         will then just ignore the repository until you permanently enable it
+aws_instance.myec2 (remote-exec):         again or use --enablerepo for temporary usage:
+
+aws_instance.myec2 (remote-exec):             yum-config-manager --disable <repoid>
+aws_instance.myec2 (remote-exec):         or
+aws_instance.myec2 (remote-exec):             subscription-manager repos --disable=<repoid>
+
+aws_instance.myec2 (remote-exec):      5. Configure the failing repository to be skipped, if it is unavailable.
+aws_instance.myec2 (remote-exec):         Note that yum will try to contact the repo. when it runs most commands,
+aws_instance.myec2 (remote-exec):         so will have to try and fail each time (and thus. yum will be be much
+aws_instance.myec2 (remote-exec):         slower). If it is a very temporary problem though, this is often a nice
+aws_instance.myec2 (remote-exec):         compromise:
+
+aws_instance.myec2 (remote-exec):             yum-config-manager --save --setopt=<repoid>.skip_if_unavailable=true
+
+aws_instance.myec2 (remote-exec): Cannot find a valid baseurl for repo: amzn2-core/2/x86_64
+╷
+│ Error: remote-exec provisioner error
+│ 
+│   with aws_instance.myec2,
+│   on main.tf line 26, in resource "aws_instance" "myec2":
+│   26:   provisioner "remote-exec" {
+│ 
+│ error executing "/tmp/terraform_2139423052.sh": Process exited with status 1
+
+
+
+- Here, we can see with on_failure = continue line being commented, defaulted to on_failure = fail,
+and as the instance not able to connect to internet, terraform fail the run throwing exit code 1
+
+- Error logs for reference:
+aws_instance.myec2 (remote-exec): Could not retrieve mirrorlist https://amazonlinux-2-repos-ap-south-1.s3.dualstack.ap-south-1.amazonaws.com/2/core/latest/x86_64/mirror.list error was
+aws_instance.myec2 (remote-exec): 12: Timeout on https://amazonlinux-2-repos-ap-south-1.s3.dualstack.ap-south-1.amazonaws.com/2/core/latest/x86_64/mirror.list: 
+(28, 'Failed to connect to amazonlinux-2-repos-ap-south-1.s3.dualstack.ap-south-1.amazonaws.com port 443 after 2702 ms: Connection timed out')
+aws_instance.myec2 (remote-exec): Cannot find a valid baseurl for repo: amzn2-core/2/x86_64
+error executing "/tmp/terraform_2139423052.sh": Process exited with status 1
+
+
+
+terraform.tfstate
+------------------
+
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 3,
+  "lineage": "fc7ae277-73cf-e406-54e0-96ca92d49387",
+  "outputs": {
+    "myec2_key": {
+      "value": "terraform-key-pair",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "myec2",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "status": "tainted",
+          "schema_version": 1,
+          "attributes": {
+            "ami": "ami-01a4f99c4ac11b03c",
+            "arn": "arn:aws:ec2:ap-south-1:295631050085:instance/i-080342bfeb43e0d27",
+            "associate_public_ip_address": true,
+            "availability_zone": "ap-south-1a",
+            "capacity_reservation_specification": [
+              {
+                "capacity_reservation_preference": "open",
+                "capacity_reservation_target": []
+              }
+            ],
+            "cpu_core_count": 1,
+            "cpu_threads_per_core": 1,
+            "credit_specification": [
+              {
+                "cpu_credits": "standard"
+              }
+            ],
+            "disable_api_stop": false,
+            "disable_api_termination": false,
+            "ebs_block_device": [],
+            "ebs_optimized": false,
+            "enclave_options": [
+              {
+                "enabled": false
+              }
+            ],
+            "ephemeral_block_device": [],
+            "get_password_data": false,
+            "hibernation": false,
+            "host_id": "",
+            "host_resource_group_arn": null,
+            "iam_instance_profile": "",
+            "id": "i-080342bfeb43e0d27",
+            "instance_initiated_shutdown_behavior": "stop",
+            "instance_state": "running",
+            "instance_type": "t2.micro",
+            "ipv6_address_count": 0,
+            "ipv6_addresses": [],
+            "key_name": "terraform-key-pair",
+            "launch_template": [],
+            "maintenance_options": [
+              {
+                "auto_recovery": "default"
+              }
+            ],
+            "metadata_options": [
+              {
+                "http_endpoint": "enabled",
+                "http_put_response_hop_limit": 1,
+                "http_tokens": "optional",
+                "instance_metadata_tags": "disabled"
+              }
+            ],
+            "monitoring": false,
+            "network_interface": [],
+            "outpost_arn": "",
+            "password_data": "",
+            "placement_group": "",
+            "placement_partition_number": 0,
+            "primary_network_interface_id": "eni-0daeaf0fd22fc04c7",
+            "private_dns": "ip-172-31-33-215.ap-south-1.compute.internal",
+            "private_dns_name_options": [
+              {
+                "enable_resource_name_dns_a_record": false,
+                "enable_resource_name_dns_aaaa_record": false,
+                "hostname_type": "ip-name"
+              }
+            ],
+            "private_ip": "172.31.33.215",
+            "public_dns": "ec2-65-2-171-75.ap-south-1.compute.amazonaws.com",
+            "public_ip": "65.2.171.75",
+            "root_block_device": [
+              {
+                "delete_on_termination": true,
+                "device_name": "/dev/xvda",
+                "encrypted": false,
+                "iops": 100,
+                "kms_key_id": "",
+                "tags": {},
+                "throughput": 0,
+                "volume_id": "vol-0b6238cf4472123c5",
+                "volume_size": 8,
+                "volume_type": "gp2"
+              }
+            ],
+            "secondary_private_ips": [],
+            "security_groups": [
+              "allow_ssh"
+            ],
+            "source_dest_check": true,
+            "subnet_id": "subnet-0b0cbbfead5b4c566",
+            "tags": null,
+            "tags_all": {},
+            "tenancy": "default",
+            "timeouts": null,
+            "user_data": null,
+            "user_data_base64": null,
+            "user_data_replace_on_change": false,
+            "volume_tags": null,
+            "vpc_security_group_ids": [
+              "sg-0b9b9882bc07e25d3"
+            ]
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6MTIwMDAwMDAwMDAwMCwidXBkYXRlIjo2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ==",
+          "dependencies": [
+            "aws_security_group.allow_ssh"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "allow_ssh",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "arn": "arn:aws:ec2:ap-south-1:295631050085:security-group/sg-0b9b9882bc07e25d3",
+            "description": "Allow SSH inbound traffic",
+            "egress": [],
+            "id": "sg-0b9b9882bc07e25d3",
+            "ingress": [
+              {
+                "cidr_blocks": [
+                  "0.0.0.0/0"
+                ],
+                "description": "SSH into VPC",
+                "from_port": 22,
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "protocol": "tcp",
+                "security_groups": [],
+                "self": false,
+                "to_port": 22
+              }
+            ],
+            "name": "allow_ssh",
+            "name_prefix": "",
+            "owner_id": "295631050085",
+            "revoke_rules_on_delete": false,
+            "tags": null,
+            "tags_all": {},
+            "timeouts": null,
+            "vpc_id": "vpc-0e325a255f57c75c0"
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6OTAwMDAwMDAwMDAwfSwic2NoZW1hX3ZlcnNpb24iOiIxIn0="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
+
+
+
+- Uncommenting on_failure = continue will make the next terraform apply to success.

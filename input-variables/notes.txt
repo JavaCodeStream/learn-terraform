@@ -14,6 +14,11 @@ Best practice is to keep all of the input variables code in a single tf file var
 
 - syntax: 
     - keyword -> variable followed by the variable name.
+    - The label after the variable keyword is a name for the variable, which must 
+    be unique among all variables in the same module.
+    - The name of a variable can be any valid identifier except the following: source, 
+    version, providers, count, for_each, lifecycle, depends_on, 
+    locals (reserved for meta-arguments)
     - within the variable block, we can provide a default value to each variable. this is an optional
     attribute but it is a quick and simple way to assign variables.
     - to use these variables, var.<name_of_variable> within respective resource block
@@ -33,7 +38,7 @@ Best practice is to keep all of the input variables code in a single tf file var
 variables.tf
 --------------
 variable "filename" {
-  default = "${path.module}/my_local_file.txt"
+  default = "my_local_file.txt"
 }
 
 variable "content" {
@@ -106,3 +111,63 @@ variable "ami" {
 variable "instance_type" {
   default = "t2.micro"
 }
+
+
+Arguments of input variables
+=================================
+- accepts 6 arguments.
+  - default - A default value which then makes the variable optional.
+  - type - This argument specifies what value types are accepted for the variable.
+  - description - This specifies the input variable's documentation.
+  - validation - A block to define validation rules, usually in addition to type constraints.
+  - sensitive - Limits Terraform UI output when the variable is used in configuration.
+  - nullable - Specify if the variable can be null within the module.
+ and description
+
+variable "filename" {
+    type = "string"
+    description = "path of local file"
+    default = "my_local_file.txt"
+}
+
+
+Default values
+---------------
+- If present, the default value will be used if no value is set when calling the 
+module or running Terraform. 
+- he default argument requires a literal value and cannot reference other 
+objects in the configuration.
+ex: below is not allowed:
+    variable "filename" {
+        default = "${path.module}/my_local_file.txt"
+    }
+
+
+
+Types
+=========================
+- allows you to restrict the type of value that will be accepted as the value for a variable.
+- If no type constraint is set then a value of any type is accepted.
+
+- While type constraints are optional, they allow Terraform to return a helpful error 
+message if the wrong type is used.
+
+type keywords are:
+
+string
+number
+bool
+
+complex types such as collections:
+
+list(<TYPE>)
+set(<TYPE>)
+map(<TYPE>)
+object({<ATTR NAME> = <TYPE>, ... })
+tuple([<TYPE>, ...])
+
+
+
+Using Variables in Terraform
+=================================
+
