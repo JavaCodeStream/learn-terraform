@@ -49,7 +49,7 @@ terraform {
 
 provider "github" {
     # generate token from Github.com -> login -> settings -> developer settings -> Personal access tokens
-    token = "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"
+    token = "<generate_github_token_and_use_here>"
 }
 
 # https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository
