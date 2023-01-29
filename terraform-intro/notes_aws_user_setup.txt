@@ -1,0 +1,41 @@
+AWS User setuo for Terraform Run
+=====================================
+AWS account: 295631050085
+Root user: sandip.paul.aws2@gmail.com
+
+- Its recommended not to use the AWS Root User for terraform executions.
+
+- Hence, Create a IAM group and user for terraform practice.
+
+- Login to AWs console with Root user.
+
+- got IAM -> create new group terraform-group -> add permission -> add policies
+
+AmazonEC2FullAccess (since most of our practice will with EC2)
+AmazonS3FullAccess  (S3 full access also given in case we want to try with terraform)
+AmazonSSMFullAccess (its given as its needed for using the terraform registry module. terraform-aws-modules/ec2-instance)
+
+- create user terraform-user adds custom password and associate with terraform-group.
+
+- also generate AccessKey and SecretKey and Note down.
+
+
+
+- Now Login with terraform-user and its custom password 
+(Sign-in URL: https://295631050085.signin.aws.amazon.com/console)
+
+IAM User: terraform-user
+Password: <custom_password_created_above>
+
+
+- Change the region to Mumbai from right side top corner drop-down.
+
+- Its AccessKeyId and SecretKey will have to set in envirnment variable.
+
+$ export AWS_ACCESS_KEY_ID="<AccessKeyId_of_terraform-user>"
+$ export AWS_SECRET_ACCESS_KEY="<SecretKey_of_terraform-user>"
+
+
+
+
+

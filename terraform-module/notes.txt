@@ -1,0 +1,388 @@
+Terraform Modules
+=======================================
+- Modules are containers for multiple resources that are used together. 
+
+- A module consists of a collection of .tf and/or .tf.json files kept together in a directory.
+
+- Modules are the main way to package and reuse resource configurations with Terraform.
+
+The Root Module
+-----------------
+- Every Terraform configuration has at least one module, known as its root module, which 
+consists of the resources defined in the .tf files in the main working directory.
+
+Child Modules
+---------------
+- A Terraform module (usually the root module of a configuration) can call other modules to 
+include their resources into the configuration.
+
+- A module that has been called by another module is often referred to as a child module.
+
+
+Published Modules
+-------------------
+- In addition to modules from the local filesystem, Terraform can load modules from a public or 
+private registry. This makes it possible to publish modules for others to use, and to use modules 
+that others have published.
+
+- The Terraform Registry hosts a broad collection of publicly available Terraform modules for 
+configuring many kinds of common infrastructure.
+
+    - These modules are free to use, and Terraform can download them automatically if you specify 
+    the appropriate source and version in a module call block.
+
+- Also, members of your organization might produce modules specifically crafted for your own 
+infrastructure needs. 
+
+- Terraform Cloud and Terraform Enterprise both include a private module registry for sharing 
+modules internally within your organization.
+
+
+Module Blocks
+--------------
+https://developer.hashicorp.com/terraform/language/modules/syntax
+
+- A module is a container for multiple resources that are used together.
+- To call a module means to include the contents of that module into the configuration with 
+specific values for its input variables. 
+
+ex:
+
+module "servers" {
+  source = "./app-cluster"
+
+  servers = 5
+}
+
+module "consul" {
+  source  = "hashicorp/consul/aws"
+  version = "0.0.5"
+
+  servers = 3
+}
+
+- *** The label immediately after the module keyword is a local name, which the calling module 
+can use to refer to this instance of the module. ex: here, "servers"
+
+- *** IMP NOTE: terraform init will download the child module, matching the folder name with the
+given local name for the child module under .terraform/modules folder of working directory.
+ex: 
+For module this:
+
+module "my_ec2_instance" {
+  source  = "terraform-aws-modules/ec2-instance/aws"
+  version = "4.3.0"
+}
+
+Downloaded module folder name: my_ec2_instance
+
+$ tree -a .
+.
+├── .terraform
+│   ├── modules
+│   │   ├── modules.json
+│   │   └── my_ec2_instance
+|   |   |__ ..
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── aws
+                |__ ..
+
+
+
+
+- *** IMP NOTE: the same local module name is used to refer all the exposed out values of the child module.
+
+ex: module.my_ec2_instance.<>
+
+output "my_ec2_instance_public_ip" {
+    value = module.my_ec2_instance.public_ip  # reference to the module registry's exposed output
+}
+
+
+
+
+- Module calls use the following kinds of arguments:
+    - The source argument is mandatory for all modules.
+    - The version argument is recommended for modules from a registry.
+    - Most other arguments correspond to input variables defined by the module. (The servers 
+    argument in the example above is one of these.)
+
+
+
+Module Sources
+---------------
+https://developer.hashicorp.com/terraform/language/modules/sources
+
+- The source argument in a module block tells Terraform where to find the source code 
+for the desired child module. It contains the module path.
+
+- Terraform uses this during the module installation step of terraform init to download 
+the source code to a directory on local disk so that other Terraform commands can use it.
+
+ex: we are using the official AWS public module: terraform-aws-modules/ec2-instance/aws 
+which is registred on registry.terraform.io, on our root module in the name: ec2-instance
+
+https://registry.terraform.io/modules/terraform-aws-modules/ec2-instance/aws/latest
+
+module "ec2-instance" {
+  source  = "terraform-aws-modules/ec2-instance/aws"
+  version = "4.3.0"
+}
+
+Now: 
+
+- terraform-aws-modules/ec2-instance/aws is the path on which the module is registered.
+- Do not confuse with its GitHub source code path which is different.
+
+https://github.com/terraform-aws-modules/terraform-aws-ec2-instance
+
+- Therefore, while using any public module, we should refer its registered path (NOT GitHub Path) 
+on its respective public/private registry.
+
+
+Module Sources Types
+---------------------
+- Local paths
+
+    - A local path must begin with either ./ or ../ to indicate that a local path is 
+    intended, to distinguish from a module registry address.
+
+    - Local paths are already present on local disk, so can just be used directly. 
+
+    - NOTE: absolute filesystem path is not considered to be a local path.
+
+    ex:
+
+    module "consul" {
+        source = "./consul"
+    }
+
+
+- Terraform Registry
+
+    - Terraform Registry is an index of modules shared publicly using this protocol. 
+
+    - You can also use a private registry, either via the built-in feature from Terraform Cloud
+
+    - Modules on the public Terraform Registry can be referenced using a registry 
+    source address of the form <NAMESPACE>/<NAME>/<PROVIDER>
+
+    module "consul" {
+        source = "hashicorp/consul/aws"
+        version = "0.1.0"
+    }
+
+    - For modules hosted in other registries, prefix the source address with an 
+    additional <HOSTNAME>/ portion, giving the hostname of the private registry:
+
+    module "consul" {
+        source = "app.terraform.io/example-corp/k8s-cluster/azurerm"
+        version = "1.1.0"
+    }
+
+
+- GitHub
+
+    - Terraform will recognize unprefixed github.com URLs and interpret them 
+    automatically as Git repository sources.
+
+    module "consul" {
+        source = "github.com/hashicorp/example"
+    }
+
+    - The above address scheme will clone over HTTPS. To clone over SSH, use the following form:
+
+    module "consul" {
+        source = "git@github.com:hashicorp/example.git"
+    }
+
+
+- Bitbucket
+
+    - Terraform will recognize unprefixed bitbucket.org URLs and interpret them automatically 
+    as BitBucket repositories:
+
+    module "consul" {
+        source = "bitbucket.org/hashicorp/terraform-consul-aws"
+    }
+
+
+
+
+- Generic Git Repository
+
+    - Arbitrary Git repositories can be used by prefixing the address with the 
+    special git:: prefix. After this prefix, any valid Git URL can be specified 
+    to select one of the protocols supported by Git.
+
+    - Terraform installs modules from Git repositories by running git clone
+
+    - For example, to use HTTPS or SSH:
+
+    module "vpc" {
+        source = "git::https://example.com/vpc.git"
+    }
+
+    module "storage" {
+        source = "git::ssh://username@example.com/storage.git"
+    }
+
+
+
+- Selecting a Revision
+
+    - By default, Terraform will clone and use the default branch (referenced by HEAD) 
+    in the selected repository. 
+
+    - use the ref argument can be any reference that would be accepted by the 
+    git checkout command
+
+    ex:
+    # select a specific tag/branch
+    module "vpc" {
+        source = "git::https://example.com/vpc.git?ref=v1.2.0"
+    }
+
+    module "vpc" {
+        source = "git::https://example.com/vpc.git?ref=feature-123"
+    }
+
+    # directly select a commit using its SHA-1 hash
+    module "storage" {
+        source = "git::https://example.com/storage.git?ref=51d462976d84fdea54b47d80dcabbf680badcdb8"
+    }
+
+
+Accessing Module Output Values
+-----------------------------------
+- The resources defined in a module are encapsulated, so the calling module cannot access 
+their attributes directly. 
+
+- However, the child module can declare output values to selectively export certain values 
+to be accessed by the calling module.
+
+
+For example, if the ./app-cluster module referenced in the Root module exported an 
+output value named instance_ids then the calling Root module can reference that result 
+using the expression module.servers.instance_ids:
+
+module "servers" {
+  source = "./app-cluster"
+
+  servers = 5
+}
+
+resource "aws_elb" "example" {
+  # ...
+
+  instances = module.servers.instance_ids
+}
+
+
+
+Creating Modules/Module structure
+-----------------------------------
+- The .tf files in your working directory when you run terraform plan or terraform 
+apply together form the root module. 
+
+- To define a module, create a new directory for it and place one or more .tf files 
+inside just as you would do for a root module.
+
+    - "Input variables" (outputs.tf) to accept values from the calling module.
+
+    - "Output valus" (variables.tf) to return results to the calling module, which it can then use 
+    to populate arguments elsewhere.
+
+    - Resources (main.tf) to define one or more infrastructure objects that the module 
+    will manage.
+
+
+
+When should we write a module
+--------------------------------------
+- In principle any combination of resources and other constructs can be factored out 
+into a module, but over-using modules can make your overall Terraform configuration 
+harder to understand and maintain, so we recommend moderation.
+
+- A good module should raise the level of abstraction by describing a new concept 
+in your architecture that is constructed from resource types offered by providers.
+
+- For example, aws_instance and aws_elb are both resource types belonging to 
+the AWS provider. You might use a module to represent the higher-level 
+concept "Some specific cluster running in AWS" which happens to be constructed 
+from these and other AWS provider resources.
+
+- Terraform do not recommend writing modules that are just thin wrappers around 
+single other resource types.
+
+
+
+
+Publishing Modules / Requirments
+--------------------------------
+https://developer.hashicorp.com/terraform/registry/modules/publish
+
+- If you've built a module that you intend to be reused, we recommend publishing 
+the module on the Terraform Registry.
+
+- If you do not wish to publish your modules in the public registry, you can instead 
+use a private registry to get the same benefits.
+
+- Published modules support versioning, automatically generate documentation, 
+allow browsing version histories, show examples and READMEs, and more. We recommend 
+publishing reusable modules to a registry.
+
+- Public modules codes are only managed via Git and GitHub.
+
+- The list below contains all the requirements for publishing a module:
+
+    - GitHub. The module must be on GitHub and must be a public repo.
+
+    - The Repo should be Named terraform-<PROVIDER>-<NAME>. Module repositories must use 
+    this three-part name format, where <NAME> reflects the type of infrastructure 
+    the module manages and <PROVIDER> is the main provider where it creates that 
+    infrastructure.
+
+    ex: All Official AWS modules are found under https://github.com/terraform-aws-modules Git account.
+
+    https://github.com/terraform-aws-modules/terraform-aws-eks
+    https://github.com/terraform-aws-modules/terraform-aws-ec2-instance 
+
+    Examples: terraform-google-vault or terraform-aws-ec2-instance.
+
+    - Repository description. simple one sentence description of the module.
+
+    - Standard module structure. is a file/directory layout containing clear separation 
+    of README, outputs, variables and resources and also any other child modules 
+    for reusable modules distributed via GITHub
+
+    - x.y.z tags for releases. example, v1.0.4 and 0.9.2. Tags that don't look like 
+    version numbers are ignored.
+
+
+
+Verified Modules
+-----------------
+- Verified modules are reviewed by HashiCorp and actively maintained by contributors to 
+stay up-to-date and compatible with both Terraform and their respective providers.
+
+- The Blue verified badge appears next to modules that are published by a verified source.
+
+- Module verification is currently a manual process restricted to a small group of trusted
+HashiCorp partners.
+
+- Verified modules are expected to be actively maintained by HashiCorp partners. 
+The verified badge isn’t indicative of flexibility or feature support; 
+
+- very simple modules can be verified just because they're great examples of modules. 
+Likewise, an unverified module could be extremely high quality and actively maintained. 
+
+- An unverified module shouldn't be assumed to be poor quality, it only means it 
+hasn't been created by a HashiCorp partner.
+
+- When using registry modules, there is no difference between a verified and 
+unverified module; they are used the same way.
+
+

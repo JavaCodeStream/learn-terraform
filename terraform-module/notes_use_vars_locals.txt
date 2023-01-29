@@ -1,0 +1,283 @@
+Override module's attribute values
+===================================================
+- Once we crate a module (child module), the TF file (root module) which will use that module can not
+directly assign attribute values to its underlying resources.
+
+- These overrides can only be allowed through terraform variables.
+
+Hands-on
+---------------------------------------------------
+child module creation (local)
+-----------------------------
+https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file
+
+- Here we created a child module is a thin wrapper of local_file terraform resource.
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-module/use-locals-vars/child-module
+
+$ tree -a .
+.
+├── main.tf
+├── outputs.tf
+└── variables.tf
+
+1 directory, 3 files
+
+
+variables.tf
+-------------
+variable "local_file_name" {
+  type    = string
+  default = "default_file.txt"
+}
+
+variable "local_file_content" {
+  type    = string
+  default = "default content"
+}
+
+main.tf
+--------
+# https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file
+
+resource "local_file" "module_local_file" {
+  # module users can override with the variables 
+  filename        = var.local_file_name
+  content         = var.local_file_content
+  file_permission = local.file_permission_fixed
+}
+
+# use of locals prevent alowing module users to override attribute values as only variables gets exposed
+# to module users
+locals {
+  file_permission_fixed = "0777"
+}
+
+
+outputs.tf
+-----------
+- We are exposing only thes 4 outputs to users of this module, 
+
+output "module_local_file_id" {
+  value = local_file.module_local_file.id
+}
+
+output "module_local_file_name" {
+  value = local_file.module_local_file.filename
+}
+
+output "module_local_file_permission" {
+  value = local_file.module_local_file.file_permission
+}
+
+output "module_local_file_content" {
+  value = local_file.module_local_file.content
+}
+
+
+
+
+
+
+Root module creation (using the above module named: module_local_file)
+-----------------------------------------------------------------------
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-module/use-locals-vars/root-module
+
+$ tree
+.
+├── main.tf
+└── outputs.tf
+
+main.tf
+-------
+module "my_module_local_file" {
+  source          = "../child-module"
+
+  # These are exposed input values from module
+  # root module can not assign values to actual resource's attributes directly.
+  local_file_name = "${path.module}/my_local_file.txt"
+  local_file_content = "We love Cats!"
+
+}
+
+
+
+outputs.tf
+-----------
+# can access only the outputs exposed by child module
+# refer the exposed outputs like: module.<local_child_module_name>.<output_name_from_child_module_output> 
+# ex: module.my_module_local_file.module_local_file_name
+
+output "my_module_local_filename" {
+  value = module.my_module_local_file.module_local_file_name
+}
+
+output "my_module_local_file_permission" {
+  value = module.my_module_local_file.module_local_file_permission
+}
+
+output "my_module_local_file_content" {
+  value = module.my_module_local_file.module_local_file_content
+}
+
+
+--------------
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-module/use-locals-vars/root-module
+
+
+--------------
+
+
+$ terraform init
+
+Initializing modules...
+- my_module_local_file in ../child-module
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/local...
+- Installing hashicorp/local v2.3.0...
+- Installed hashicorp/local v2.3.0 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform has been successfully initialized!
+
+
+--------------
+
+
+$ tree -a .
+.
+├── .terraform
+│   ├── modules
+│   │   └── modules.json
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── local
+│                   └── 2.3.0
+│                       └── darwin_arm64
+│                           └── terraform-provider-local_v2.3.0_x5
+├── .terraform.lock.hcl
+├── main.tf
+└── outputs.tf
+
+9 directories, 5 files
+
+
+
+----------------
+
+
+$ terraform apply
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following
+symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.my_module_local_file.local_file.module_local_file will be created
+  + resource "local_file" "module_local_file" {
+      + content              = "Happy New Year 2023!!!"
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "./my_local_file_test.txt"
+      + id                   = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + my_module_local_file_content    = "Happy New Year 2023!!!"
+  + my_module_local_file_permission = "0777"
+  + my_module_local_filename        = "./my_local_file_test.txt"
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+module.my_module_local_file.local_file.module_local_file: Creating...
+module.my_module_local_file.local_file.module_local_file: Creation complete after 0s [id=cae97e0476b12675afb1b86986af78e61e8e7648]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+my_module_local_file_content = "Happy New Year 2023!!!"
+my_module_local_file_permission = "0777"
+my_module_local_filename = "./my_local_file_test.txt"
+
+
+
+
+------------------------
+
+
+$ cat ./my_local_file_test.txt 
+Happy New Year 2023!!!
+
+
+---------------------------
+
+$ cat ./terraform.tfstate
+
+
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 1,
+  "lineage": "15381fd5-4e1b-47ca-c56f-8386d1ac0c13",
+  "outputs": {
+    "my_module_local_file_content": {
+      "value": "Happy New Year 2023!!!",
+      "type": "string"
+    },
+    "my_module_local_file_permission": {
+      "value": "0777",
+      "type": "string"
+    },
+    "my_module_local_filename": {
+      "value": "./my_local_file_test.txt",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "module": "module.my_module_local_file",
+      "mode": "managed",
+      "type": "local_file",
+      "name": "module_local_file",
+      "provider": "provider[\"registry.terraform.io/hashicorp/local\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "content": "Happy New Year 2023!!!",
+            "content_base64": null,
+            "directory_permission": "0777",
+            "file_permission": "0777",
+            "filename": "./my_local_file_test.txt",
+            "id": "cae97e0476b12675afb1b86986af78e61e8e7648",
+            "sensitive_content": null,
+            "source": null
+          },
+          "sensitive_attributes": []
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
