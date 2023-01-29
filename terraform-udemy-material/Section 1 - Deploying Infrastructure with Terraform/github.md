@@ -21,7 +21,7 @@ terraform {
 }
 
 provider "github" {
-  token = "8c6f0e838e998844a8bb32b0050a7dee6a31a4df"
+  token = "<>"
 }
 
 resource "github_repository" "example" {
