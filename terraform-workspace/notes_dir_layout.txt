@@ -1,0 +1,67 @@
+Using well defined directory layout to manage terraform infra envirnment
+===========================================================================
+- Directory layout provides separation. but 
+
+Pros:
+- Isolation of backend for each envirnments.
+    - Improve security
+    - Decreased potential human error.
+- Codebase fully represent deployed state. No conditional checks.
+
+Cons:
+- Multiple terraform apply required to provision in its environments.
+- More code duplication, But can be managed with modules.
+
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-workspace/use-tfvars-dir
+
+
+$ tree
+.
+├── dev
+│   ├── main.tf
+│   └── variables.tf
+├── prod
+│   ├── main.tf
+│   └── variables.tf
+└── test
+    ├── main.tf
+    └── variables.tf
+
+4 directories, 6 files
+
+
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-workspace/use-tfvars-dir/dev
+
+$ tree
+.
+├── main.tf
+└── variables.tf
+
+
+$ terraform init
+
+
+$ terraform plan
+
+- Shows instance_type = "t2.micro"
+
+
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-workspace/use-tfvars-dir/prod
+
+$ tree
+.
+├── main.tf
+└── variables.tf
+
+
+$ terraform plan
+
+- Shows instance_type = "t2.large"
+
+

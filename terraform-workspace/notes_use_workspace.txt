@@ -1,0 +1,161 @@
+Managing multiple Environment in Terraform
+=====================================================
+- How we can use Terraform configurations for provisioning infra to multiple Environment.
+
+2 Approaches
+--------------
+
+1. Using Workdpace
+----------------------
+- Each Terraform configuration has an associated backend that defines how Terraform 
+executes operations and where Terraform stores persistent data, like state.
+
+- terraform has a feature called workspace which nothing but multiple named sections within
+a single backend, allowing multiple states to be associated with a single configuration.
+
+- The configuration still has only one backend, but you can deploy multiple distinct 
+instances of that configuration without configuring a new backend or changing authentication 
+credentials.
+
+- we can have multiple workspaces for respective envirnment like dev/test/prod for tracking 3
+different state files with its own infra changes stored in a same backend.
+
+- the terraform supported backends are local, s3, remote, kubernets, Postgres etc.
+
+- Within your Terraform configuration, you may include the name of the current workspace 
+using the ${terraform.workspace} interpolation sequence, this way we can have different values for
+the same resource attributes based on its target deployment envirnments.
+ex: t2.micro for EC2 instaces on dev, t2.medium for tes and t2.large for prod.
+
+
+Pros:
+- Easy to get started.
+- Convenient terraform.workspace expression usage in TF file.
+- Minimizes code duplication.
+
+Cons:
+- Prone to human error.
+- State stored within same backend since the TF config file is same.
+
+
+example:
+
+resource "aws_instance" "myec2" {
+   ami = "ami-082b5a644766e0e6f"
+   instance_type = lookup(var.instance_type, terraform.workspace)
+}
+
+variable "ec2_instance_type" {
+  type = "map"
+
+  default = {
+    default = "t2.nano"
+    dev     = "t2.micro"
+    test     = "t2.medium"
+    test     = "t2.large"
+  }
+}
+
+
+
+Terraform Workspace commands:
+-------------------------------
+terraform workspace -h
+terraform workspace show            - Show the name of the current workspace
+terraform workspace new dev         - Create a new workspace
+terraform workspace new prod        - Create a new workspace
+terraform workspace list            - List Workspaces
+terraform workspace select dev      - Select a workspace
+terraform workspace delete dev      - Delete a workspace
+
+
+- Terraform starts with a single, default workspace named default that you cannot delete. 
+If you have not created a new workspace, you are using the default workspace in your 
+Terraform working directory.
+
+
+- For local backend, terraform stores state data for default workspace on terraform.tfstate file.
+- terraform stores state data for any other non-default workspace on a folder: terraform.tfstate.d
+terraform.tfstate.d/dev
+terraform.tfstate.d/test
+terraform.tfstate.d/prod
+
+
+
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-workspace/use-workspace
+
+$ tree
+.
+└── main.tf
+
+$ terraform init
+
+
+$ terraform workspace list
+* default
+
+$ terraform workspace new dev
+Created and switched to workspace "dev"!
+
+$ terraform workspace new test
+Created and switched to workspace "test"!
+
+$ terraform workspace new prod
+Created and switched to workspace "prod"!
+
+$ terraform workspace list
+  default
+  dev
+* prod
+  test
+
+
+
+$ tree -a .
+.
+├── .terraform
+│   ├── environment
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── aws
+│                   └── 4.52.0
+│                       └── darwin_arm64
+│                           └── terraform-provider-aws_v4.52.0_x5
+├── .terraform.lock.hcl
+├── main.tf
+└── terraform.tfstate.d
+    ├── dev
+    ├── prod
+    └── test
+
+12 directories, 4 files
+
+
+
+$ terraform workspace select dev
+Switched to workspace "dev".
+
+
+$ terraform plan
+
+- shows the instance_type selected as "t2.micro" for env: dev
++ instance_type                        = "t2.micro"
+
+
+
+$ terraform workspace select test
+Switched to workspace "test".
+
+$ terraform workspace list
+  default
+  dev
+  prod
+* test
+
+
+$ terraform plan
+- shows the instance_type selected as "t2.medium" for env: test
++ instance_type                        = "t2.medium"

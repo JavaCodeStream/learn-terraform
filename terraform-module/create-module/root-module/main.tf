@@ -1,16 +1,10 @@
-module "ec2_cluster" {
-  source                 = "terraform-aws-modules/ec2-instance/aws"
-  version                = "~> 2.0"
+# Using newly created module
+module "ec2_sg_module" {
+  source = "../child-module"
+}
 
-  name                   = "my-cluster"
-  instance_count         = 1
-
-  ami                    = "ami-0d6621c01e8c2de2c"
+resource "aws_instance" "my_ec2" {
+  ami                    = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
   instance_type          = "t2.micro"
-  subnet_id              = "subnet-4dbfb206"
-
-  tags = {
-    Terraform   = "true"
-    Environment = "dev"
-  }
+  vpc_security_group_ids = [module.ec2_sg_module.ec2_security_grp_id] # referencing child module's exposed output
 }
