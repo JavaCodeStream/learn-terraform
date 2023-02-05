@@ -214,8 +214,10 @@ Module Sources Types
 - Generic Git Repository
 
     - Arbitrary Git repositories can be used by prefixing the address with the 
-    special git:: prefix. After this prefix, any valid Git URL can be specified 
-    to select one of the protocols supported by Git.
+    special git:: prefix. 
+
+    - After this prefix, any valid Git URL can be specified to select one of the 
+    protocols supported by Git.
 
     - Terraform installs modules from Git repositories by running git clone
 
@@ -229,14 +231,15 @@ Module Sources Types
         source = "git::ssh://username@example.com/storage.git"
     }
 
+    
 
 
-- Selecting a Revision
+- Selecting a Revision / Referencing to a Branch
 
     - By default, Terraform will clone and use the default branch (referenced by HEAD) 
     in the selected repository. 
 
-    - use the ref argument can be any reference that would be accepted by the 
+    - the ref argument can be any reference that would be accepted by the 
     git checkout command
 
     ex:

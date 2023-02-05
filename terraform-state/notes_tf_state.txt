@@ -1,5 +1,7 @@
 Terraform State (terraform.tfstate)
 =======================================
+- location: TF working directory.
+
 - terraform stores the state of the real world infrastructure that is being created from the TF files.
 
 - This state allows terraform to map real world objects to our existing configuration.
@@ -615,3 +617,83 @@ terraform.tfstate after apply
   ],
   "check_results": null
 }
+
+
+
+
+Purpose of Terraform State
+--------------------------------
+- State is a necessary requirement for Terraform to function. It is often asked if it is 
+possible for Terraform to work without state, or for Terraform to not use state and just 
+inspect real world resources on every run.
+
+
+Mapping to the Real World
+--------------------------------
+- Terraform requires some sort of database to map Terraform config to the real world. 
+
+- example, when you have a resource resource "aws_instance" "foo" in your configuration, 
+Terraform uses this mapping to know that the resource resource "aws_instance" "foo" represents 
+a real world object with the instance ID i-abcd1234 on a remote system.
+
+
+Metadata
+--------------------------------
+- Alongside the mappings between resources and remote objects, Terraform must also track 
+metadata such as resource dependencies.
+
+- Terraform typically uses the configuration to determine dependency order while creating 
+them.
+
+- when you delete a resource from a Terraform configuration, Terraform must know how to 
+delete that resource from the remote system.
+
+- To ensure correct operation, Terraform retains a copy of the most recent set of 
+dependencies within the state. 
+
+
+Performance Improvements due to State
+------------------------------------------
+- In addition to basic mapping, Terraform stores a cache of the attribute values for all 
+resources in the state. Terraform uses these local copy of attributes to optionally
+improve performance for large infra.
+
+- When running a terraform plan, Terraform must know the current state of resources in order 
+to effectively determine the changes that it needs to make to reach your desired configuration.
+
+- For small infrastructures
+  - Terraform can query your providers and sync the latest attributes from all your resources. 
+  This is the default behavior of Terraform: for every plan and apply, Terraform will sync 
+  all resources in your state.
+
+- For larger infrastructures
+  - querying every resource is too slow.
+
+  - Many cloud providers do not provide APIs to query multiple resources at once, and the round 
+  trip time for each resource is hundreds of milliseconds. 
+
+  - On top of this, cloud providers almost always have API rate limiting so Terraform can only 
+  request a certain number of resources in a period of time.
+
+- Larger users of Terraform make heavy use of the -refresh=false flag as well as the -target 
+flag in order to work around this. In these scenarios, the cached state is treated as the 
+record of truth.
+
+
+
+Syncing
+----------
+
+- Terraform stores the state in a file in the current working directory where Terraform was run.
+
+- but when using Terraform in a team it is important for everyone to be working with the same state 
+so that operations will be applied to the same remote objects.
+
+- With a fully-featured state backend, Terraform can use remote locking as a measure to avoid 
+two or more different users accidentally running Terraform at the same time, and thus ensure 
+that each Terraform run begins with the most recent updated state.
+
+
+
+
+

@@ -27,7 +27,8 @@ for the current working directory.
 13/ terraform fmt                       - Formats your configuration with correct indentation and 
 automatically updates configurations in the current directory. print out the names of the files 
 it modified, if any.
-14/ terraform validate                  - make sure your configuration is syntactically valid
+14/ terraform validate                  - make sure your configuration is syntactically valid &
+must run only after terraform init
 
 
 

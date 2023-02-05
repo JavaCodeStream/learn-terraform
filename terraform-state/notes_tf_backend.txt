@@ -1,0 +1,106 @@
+Terraform Backend
+====================
+
+- A backend defines where Terraform stores its state data files.
+
+- Terraform uses persisted state data to keep track of the resources it manages.
+
+- By default, Terraform uses a backend called local, which stores state as a local file on disk.
+    - This local backend setup prevents co-work/cross sharring/team work on same TF project.
+    - storing state file on local disk does not allow team collaboration.
+
+- Most non-trivial Terraform configurations either integrate with Terraform Cloud or use a 
+backend to store state remotely. This lets multiple people access the state data and work 
+together on that collection of infrastructure resources.
+
+
+- you must run terraform init to validate and configure the backend before you can 
+perform any plans, applies, or state operations.
+
+Ideal Architecture:
+----------------------
+- All of the terraform code (tf files) should be stored in GIT repo.
+- State file (terraform.tfstate) should be stored in central remote backend.
+- So when we run terraform apply on changes to tf files, terraform updates
+the state file on remote backend.
+
+
+State Storage
+---------------
+- Backends determine where state is stored. For example, the local (default) backend 
+stores state in a local JSON file on disk.
+
+- In the case of an error persisting the state to the remote backend, Terraform will 
+write the state locally. This is to prevent data loss.
+
+- If this happens, the end user must manually push the state to the remote backend 
+once the error is resolved.
+
+
+Manual State Pull/Push
+-----------------------
+- terraform state pull
+
+  - You can still manually retrieve the state from the remote state using this command.
+  - This will load your remote state and output it to stdout. You can choose to save that 
+  to a file or perform any other operations.
+
+- terraform state push
+
+  - This is extremely dangerous and should be avoided if possible. 
+  - This will overwrite the remote state. This can be used to do manual fixups if necessary.
+
+
+
+Terraform access to remote service
+-------------------------------------
+- Backends store state in a remote service (ex: S3), which allows multiple people to access it.
+
+- Accessing remote state generally requires access credentials. ex: we configured remote state to
+be S3 bucket, Now, a terraform-user wants to apply/destroy action, since the state file
+gets stored in S3 bucket, that terraform-user needs to have appropriate access to the same S3
+bucket.
+
+- This state file access does not get considered for local backed since the file in stored
+on local disk.
+
+
+
+Using a Backend Block
+-----------------------
+- You do not need to configure a backend when using Terraform Cloud because Terraform Cloud automatically 
+manages state in the workspaces associated with your configuration.
+
+- If your configuration includes a 'cloud' block, it cannot include a backend block.
+
+- To configure a backend, add a nested backend block within the top-level terraform block.
+
+terraform {
+  backend "remote" {
+    organization = "example_corp"
+
+    workspaces {
+      name = "my-app-prod"
+    }
+  }
+}
+
+NOTE:
+    - A configuration can only provide one backend block.
+    - A backend block cannot refer to named values (like input variables, locals, or data source attributes).
+
+
+Available Backends
+----------------------
+- Terraform supports multiple backends that allows store/access state file remotely.
+    - S3            :   The local backend stores state on the local filesystem, locks that state 
+                        using system APIs, and performs operations locally.
+
+    - Consul        : 
+    - Azurerm
+    - Kubernetes
+    - HTTP
+    - ETCD
+
+
+

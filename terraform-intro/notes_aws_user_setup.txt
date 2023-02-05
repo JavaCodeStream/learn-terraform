@@ -11,9 +11,13 @@ Root user: sandip.paul.aws2@gmail.com
 
 - got IAM -> create new group terraform-group -> add permission -> add policies
 
-AmazonEC2FullAccess (since most of our practice will with EC2)
-AmazonS3FullAccess  (S3 full access also given in case we want to try with terraform)
-AmazonSSMFullAccess (its given as its needed for using the terraform registry module. terraform-aws-modules/ec2-instance)
+    - AmazonEC2FullAccess (since most of our practice will with EC2)
+    - AmazonS3FullAccess  (S3 full access given for s3 backend remote state with terraform)
+    - AmazonSSMFullAccess (its given as its needed for using the terraform registry 
+    module. terraform-aws-modules/ec2-instance)
+    - AmazonRDSFullAccess (to be able to create RDS resource with terraform)
+    - AmazonDynamoDBFullAccess (for enabling state locking with s3 remote backend for state)
+    - IAMFullAccess (for terraform to be able to create IAM users)
 
 - create user terraform-user adds custom password and associate with terraform-group.
 

@@ -1,0 +1,321 @@
+Terraform Import Infrastructure
+==================================================================
+- Terraform can import existing infrastructure resources. 
+- This functionality lets you bring existing resources under Terraform management.
+
+NOTE: 
+- Terraform expects that each remote object is bound to only one resource address. 
+- You should import each remote object to only one Terraform resource address. 
+- If you import the same object multiple times, Terraform may exhibit unwanted behavior.
+
+
+Typical Challenges:
+--------------------
+- It can happen, all the resources of an organization was created manually.
+- Now, wants to start using Terraform and manage these resources via Terraform.
+
+
+Only the State gets Imported
+------------------------------
+- Terraform import can only import resources into the state. Importing does 
+not generate TF configuration files.
+- example: lets say, we have manually created s3 bucket and ec2 instance. Now, terraform import
+will just download the corresponding terraform.tfstate file BUT we then need to map each
+resources to its corresponding TF config files i.e. ec2.tf and s3.tf
+
+- *** IMP NOTE: Before you run terraform import you must manually write a resource 
+configuration block for the resource. The resource block describes where Terraform 
+should map the imported object.
+
+
+Command
+------------------------------
+Usage: terraform import [options] ADDRESS ID
+
+- Import will find the existing resource from ID and import it into your 
+Terraform state at the given ADDRESS (<resource_type>.<resource_name>)
+
+
+
+Hands-On
+==============================================================
+- Go AWS console -> create an EC2 instance -> give a name: manual-ec2 -> select any available key-pair or we
+can ignore -> others set default -> create instance.
+
+- my_ec2_instance with instance id (i-09a0c63a4369aed44) is in running state.
+
+- Now, Before we start to use the terraform import command, we have to first create a
+corresponding terraform file associated with a ec2 resource that matches with the running
+instance in AWS
+
+- So, the desired state of ec2.tf file should match to the current state of the running 
+EC2 instance
+
+- Basically, we need to manually create a ec2.tf file by looking up all its
+attribute values from the running instance.
+ex: Tags, Security Group ID, instance type, ami, key pair name.
+
+- NOTE: the resource local name can be any. ex: web
+
+$ tree
+.
+└── ec2-state-import.tf
+
+
+ec2-state-import.tf
+--------------------
+provider "aws" {
+  region = "app-south-1"
+}
+
+
+resource "aws_instance" "web" {
+  ami = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+
+  instance_type = "t2.micro"   # get it from console from the running instance
+
+  vpc_security_group_ids = ["sg-0e88df4d95d4112db"] # get it from console from the running instance
+
+  key_name = "terraform-key-pair" # get it from console from the running instance
+
+  tags = {
+    Name = "manual-ec2"      # get it from console from the running instance
+  }
+}
+
+
+$ export AWS_ACCESS_KEY_ID="<>"
+$ export AWS_SECRET_ACCESS_KEY="<>"
+
+
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/aws...
+- Installing hashicorp/aws v4.53.0...
+- Installed hashicorp/aws v4.53.0 (signed by HashiCorp)
+
+..
+..
+Terraform has been successfully initialized!
+
+
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── aws
+│                   └── 4.53.0
+│                       └── darwin_arm64
+│                           └── terraform-provider-aws_v4.53.0_x5
+├── .terraform.lock.hcl
+└── ec2-state-import.tf
+
+8 directories, 3 files
+
+
+
+
+- Now run terraform import command. 
+    - Need 2 arguments:
+        - resource address i.e. aws_instance.web
+        - ec2 instance ID i.e. Get the ec2 instance ID from console i.e. i-09a0c63a4369aed44
+
+
+
+
+$ terraform import aws_instance.web i-09a0c63a4369aed44
+
+aws_instance.web: Importing from ID "i-09a0c63a4369aed44"...
+aws_instance.web: Import prepared!
+  Prepared aws_instance for import
+aws_instance.web: Refreshing state... [id=i-09a0c63a4369aed44]
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+
+
+
+- Make sure your TF file is nor correctly binded run terraform plan.
+
+$ terraform plan 
+aws_instance.web: Refreshing state... [id=i-09a0c63a4369aed44]
+
+No changes. Your infrastructure matches the configuration.
+
+
+
+
+- Lets Now, make a change to our TF file ex: change Tags to terrafom-ec2
+
+ec2-state-import.tf
+--------------------
+provider "aws" {
+  region = "ap-south-1"
+}
+
+
+resource "aws_instance" "web" {
+  ami = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+
+  instance_type = "t2.micro"   # get it from console from the running instance
+
+  vpc_security_group_ids = ["sg-0e88df4d95d4112db"] # get it from console from the running instance
+
+  key_name = "terraform-key-pair" # get it from console from the running instance
+
+  tags = {
+    Name = "terraform-ec2"      # changes the tags now.
+  }
+}
+
+
+
+$ terraform apply -auto-approve
+
+aws_instance.web: Refreshing state... [id=i-09a0c63a4369aed44]
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the
+following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # aws_instance.web will be updated in-place
+  ~ resource "aws_instance" "web" {
+        id                                   = "i-09a0c63a4369aed44"
+      ~ tags                                 = {
+          ~ "Name" = "my_ec2_instance" -> "terraform-ec2"
+        }
+      ~ tags_all                             = {
+          ~ "Name" = "my_ec2_instance" -> "terraform-ec2"
+        }
+      + user_data_replace_on_change          = false
+        # (30 unchanged attributes hidden)
+
+        # (8 unchanged blocks hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+aws_instance.web: Modifying... [id=i-09a0c63a4369aed44]
+aws_instance.web: Modifications complete after 2s [id=i-09a0c63a4369aed44]
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+
+
+
+
+$ terraform destroy -auto-approve
+
+aws_instance.web: Refreshing state... [id=i-09a0c63a4369aed44]
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the
+following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_instance.web will be destroyed
+  - resource "aws_instance" "web" {
+      - ami                                  = "ami-01a4f99c4ac11b03c" -> null
+      - arn                                  = "arn:aws:ec2:ap-south-1:295631050085:instance/i-09a0c63a4369aed44" -> null
+      - associate_public_ip_address          = true -> null
+      - availability_zone                    = "ap-south-1b" -> null
+      - cpu_core_count                       = 1 -> null
+      - cpu_threads_per_core                 = 1 -> null
+      - disable_api_stop                     = false -> null
+      - disable_api_termination              = false -> null
+      - ebs_optimized                        = false -> null
+      - get_password_data                    = false -> null
+      - hibernation                          = false -> null
+      - id                                   = "i-09a0c63a4369aed44" -> null
+      - instance_initiated_shutdown_behavior = "stop" -> null
+      - instance_state                       = "running" -> null
+      - instance_type                        = "t2.micro" -> null
+      - ipv6_address_count                   = 0 -> null
+      - ipv6_addresses                       = [] -> null
+      - key_name                             = "terraform-key-pair" -> null
+      - monitoring                           = false -> null
+      - placement_partition_number           = 0 -> null
+      - primary_network_interface_id         = "eni-098b9929176336d53" -> null
+      - private_dns                          = "ip-172-31-5-139.ap-south-1.compute.internal" -> null
+      - private_ip                           = "172.31.5.139" -> null
+      - public_dns                           = "ec2-3-110-208-226.ap-south-1.compute.amazonaws.com" -> null
+      - public_ip                            = "3.110.208.226" -> null
+      - secondary_private_ips                = [] -> null
+      - security_groups                      = [
+          - "launch-wizard-1",
+        ] -> null
+      - source_dest_check                    = true -> null
+      - subnet_id                            = "subnet-011a1293620272feb" -> null
+      - tags                                 = {
+          - "Name" = "terraform-ec2"
+        } -> null
+      - tags_all                             = {
+          - "Name" = "terraform-ec2"
+        } -> null
+      - tenancy                              = "default" -> null
+      - user_data_replace_on_change          = false -> null
+      - vpc_security_group_ids               = [
+          - "sg-0e88df4d95d4112db",
+        ] -> null
+
+      - capacity_reservation_specification {
+          - capacity_reservation_preference = "open" -> null
+        }
+
+      - credit_specification {
+          - cpu_credits = "standard" -> null
+        }
+
+      - enclave_options {
+          - enabled = false -> null
+        }
+
+      - maintenance_options {
+          - auto_recovery = "default" -> null
+        }
+
+      - metadata_options {
+          - http_endpoint               = "enabled" -> null
+          - http_put_response_hop_limit = 1 -> null
+          - http_tokens                 = "optional" -> null
+          - instance_metadata_tags      = "disabled" -> null
+        }
+
+      - private_dns_name_options {
+          - enable_resource_name_dns_a_record    = true -> null
+          - enable_resource_name_dns_aaaa_record = false -> null
+          - hostname_type                        = "ip-name" -> null
+        }
+
+      - root_block_device {
+          - delete_on_termination = true -> null
+          - device_name           = "/dev/xvda" -> null
+          - encrypted             = false -> null
+          - iops                  = 100 -> null
+          - tags                  = {} -> null
+          - throughput            = 0 -> null
+          - volume_id             = "vol-0adf9df5aed96fa14" -> null
+          - volume_size           = 8 -> null
+          - volume_type           = "gp2" -> null
+        }
+
+      - timeouts {}
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+aws_instance.web: Destroying... [id=i-09a0c63a4369aed44]
+aws_instance.web: Still destroying... [id=i-09a0c63a4369aed44, 10s elapsed]
+aws_instance.web: Still destroying... [id=i-09a0c63a4369aed44, 20s elapsed]
+aws_instance.web: Destruction complete after 30s
+
+Destroy complete! Resources: 1 destroyed.

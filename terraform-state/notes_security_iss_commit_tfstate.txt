@@ -1,0 +1,262 @@
+Security Challenges in Commiting TFState file to GIT
+=======================================================
+- Whenever we need to pass a password for provisioning some of the aws serviced ex: RDS, we can pass
+the password directly on TF file but thats not the right practice.
+
+- some people use interpolation function and keep the password on a separate txt file which is 
+not committed to git repo, and read that file content using the TF file() function and pass
+that to the TF resource attrubute value.
+
+example:
+NOTE: Make sure the terraform-user (aws) used, must have RDS access. Given AmazonRDSFullAccess before 
+running terraform.
+
+main.tf
+-------
+resource "aws_db_instance" "default" {
+  allocated_storage    = 1                  # db storage in GB, free tier upto 20GB
+  storage_type         = "gp2"              # general purpose SSD incl in free tier
+  engine               = "mysql"
+  engine_version       = "5.7"
+  instance_class       = "db.t2.micro"
+  db_name              = "mydb"
+  username             = "foo"
+  password             = "${file("./rds_pass.txt")}"
+  parameter_group_name = "default.mysql5.7"
+  skip_final_snapshot = "true"
+}
+
+
+rds_pass.txt
+-------------
+<some_dummy_credentials>
+
+
+- Set AWS creds to Env variables.
+
+$ export AWS_ACCESS_KEY_ID="<AccessKeyId_of_terraform-user>"
+$ export AWS_SECRET_ACCESS_KEY="<SecretKey_of_terraform-user>"
+
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-state-mgmt/security_commit_tfstate_git
+
+$ tree
+.
+├── main.tf
+└── rds_pass.txt
+
+
+
+$ terraform init
+
+
+$ terraform plan
+
+Terraform will perform the following actions:
+
+  # aws_db_instance.default will be created
+  + resource "aws_db_instance" "default" {
+      + address                               = (known after apply)
+      + allocated_storage                     = 1
+      + apply_immediately                     = false
+      + arn                                   = (known after apply)
+      + auto_minor_version_upgrade            = true
+      + availability_zone                     = (known after apply)
+      + backup_retention_period               = (known after apply)
+      + backup_window                         = (known after apply)
+      + ca_cert_identifier                    = (known after apply)
+      + character_set_name                    = (known after apply)
+      + copy_tags_to_snapshot                 = false
+      + db_name                               = "mydb"
+      + db_subnet_group_name                  = (known after apply)
+      + delete_automated_backups              = true
+      + endpoint                              = (known after apply)
+      + engine                                = "mysql"
+      + engine_version                        = "5.7"
+      + engine_version_actual                 = (known after apply)
+      + hosted_zone_id                        = (known after apply)
+      + id                                    = (known after apply)
+      + identifier                            = (known after apply)
+      + identifier_prefix                     = (known after apply)
+      + instance_class                        = "db.t2.micro"
+      + iops                                  = (known after apply)
+      + kms_key_id                            = (known after apply)
+      + latest_restorable_time                = (known after apply)
+      + license_model                         = (known after apply)
+      + maintenance_window                    = (known after apply)
+      + monitoring_interval                   = 0
+      + monitoring_role_arn                   = (known after apply)
+      + multi_az                              = (known after apply)
+      + name                                  = (known after apply)
+      + nchar_character_set_name              = (known after apply)
+      + network_type                          = (known after apply)
+      + option_group_name                     = (known after apply)
+      + parameter_group_name                  = "default.mysql5.7"
+      + password                              = (sensitive value)
+      + performance_insights_enabled          = false
+      + performance_insights_kms_key_id       = (known after apply)
+      + performance_insights_retention_period = (known after apply)
+      + port                                  = (known after apply)
+      + publicly_accessible                   = false
+      + replica_mode                          = (known after apply)
+      + replicas                              = (known after apply)
+      + resource_id                           = (known after apply)
+      + skip_final_snapshot                   = true
+      + snapshot_identifier                   = (known after apply)
+      + status                                = (known after apply)
+      + storage_throughput                    = (known after apply)
+      + storage_type                          = "gp2"
+      + tags_all                              = (known after apply)
+      + timezone                              = (known after apply)
+      + username                              = "foo"
+      + vpc_security_group_ids                = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+
+- If we see the password attribute value is shows as "(sensitive value)" on the above
+terrafom plan output.
+
++ password                              = (sensitive value)
+
+
+$ terraform apply
+
+aws_db_instance.default: Creating...
+aws_db_instance.default: Still creating... [10s elapsed]
+..
+..
+aws_db_instance.default: Still creating... [3m50s elapsed]
+aws_db_instance.default: Still creating... [4m0s elapsed]
+aws_db_instance.default: Creation complete after 4m4s [id=terraform-20230204062457935300000001]
+
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── aws
+│                   └── 4.53.0
+│                       └── darwin_arm64
+│                           └── terraform-provider-aws_v4.53.0_x5
+├── .terraform.lock.hcl
+├── main.tf
+├── rds_pass.txt
+├── terraform.tfstate
+└── terraform.tfstate.backup
+
+
+
+terraform.tfstate
+------------------
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 3,
+  "lineage": "55595615-e0e8-d49d-91de-023ff11ff9ef",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "default",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "address": "terraform-20230204062457935300000001.czdrwr8junb6.ap-south-1.rds.amazonaws.com",
+            "allocated_storage": 5,
+            "allow_major_version_upgrade": null,
+            "apply_immediately": false,
+            "arn": "arn:aws:rds:ap-south-1:295631050085:db:terraform-20230204062457935300000001",
+            "auto_minor_version_upgrade": true,
+            "availability_zone": "ap-south-1b",
+            "backup_retention_period": 0,
+            "backup_window": "18:39-19:09",
+            "blue_green_update": [],
+            "ca_cert_identifier": "rds-ca-2019",
+            "character_set_name": "",
+            "copy_tags_to_snapshot": false,
+            "custom_iam_instance_profile": "",
+            "customer_owned_ip_enabled": false,
+            "db_name": "mydb",
+            "db_subnet_group_name": "default",
+            "delete_automated_backups": true,
+            "deletion_protection": false,
+            "domain": "",
+            "domain_iam_role_name": "",
+            "enabled_cloudwatch_logs_exports": null,
+            "endpoint": "terraform-20230204062457935300000001.czdrwr8junb6.ap-south-1.rds.amazonaws.com:3306",
+            "engine": "mysql",
+            "engine_version": "5.7",
+            "engine_version_actual": "5.7.39",
+            "final_snapshot_identifier": null,
+            "hosted_zone_id": "Z2VFMSZA74J7XZ",
+            "iam_database_authentication_enabled": false,
+            "id": "terraform-20230204062457935300000001",
+            "identifier": "terraform-20230204062457935300000001",
+            "identifier_prefix": "terraform-",
+            "instance_class": "db.t2.micro",
+            "iops": 0,
+            "kms_key_id": "",
+            "latest_restorable_time": "",
+            "license_model": "general-public-license",
+            "maintenance_window": "wed:07:19-wed:07:49",
+            "max_allocated_storage": 0,
+            "monitoring_interval": 0,
+            "monitoring_role_arn": "",
+            "multi_az": false,
+            "name": "mydb",
+            "nchar_character_set_name": "",
+            "network_type": "IPV4",
+            "option_group_name": "default:mysql-5-7",
+            "parameter_group_name": "default.mysql5.7",
+            "password": "some_dummy_credentials",
+            "performance_insights_enabled": false,
+            "performance_insights_kms_key_id": "",
+            "performance_insights_retention_period": 0,
+            "port": 3306,
+            "publicly_accessible": false,
+            "replica_mode": "",
+            "replicas": [],
+            "replicate_source_db": "",
+            "resource_id": "db-5G6GD3T7IKMLLDYDEVR2OVRKKM",
+            "restore_to_point_in_time": [],
+            "s3_import": [],
+            "security_group_names": null,
+            "skip_final_snapshot": true,
+            "snapshot_identifier": null,
+            "status": "available",
+            "storage_encrypted": false,
+            "storage_throughput": 0,
+            "storage_type": "gp2",
+            "tags": null,
+            "tags_all": {},
+            "timeouts": null,
+            "timezone": "",
+            "username": "foo",
+            "vpc_security_group_ids": [
+              "sg-09821735d6cf83354"
+            ]
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoyNDAwMDAwMDAwMDAwLCJkZWxldGUiOjM2MDAwMDAwMDAwMDAsInVwZGF0ZSI6NDgwMDAwMDAwMDAwMH0sInNjaGVtYV92ZXJzaW9uIjoiMSJ9"
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
+
+
+- So terraform apply produced tfstate file, has the actual password exposed. Thats why its not
+Good practice to commit terraform.tfstate file to Git repo.
+
+"password": "some_dummy_credentials",
+
+

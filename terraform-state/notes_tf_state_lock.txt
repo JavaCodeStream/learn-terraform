@@ -1,0 +1,90 @@
+Terraform State lock
+==============================
+
+- Backends are responsible for supporting state locking if possible.
+
+- Not all backends support locking.
+
+- Whichever backedn we choose, in terraform, we need to ensure that the backedn supports locking
+of the state file, otherwise if multipole users working on the same state file at the same time, then
+that can lead to conflicts and inconsistencies. 
+
+- So, if one user is working on a state file, that state file will be locked for everyone, untill the
+his rettaform operations are completed.
+
+- If supported by your backend, Terraform will lock your state for all operations that 
+could write state. This prevents others from acquiring the lock and potentially 
+corrupting your state.
+
+- State locking happens automatically on all operations that could write state. We dont see
+any message that the lock is being taken.
+
+- If state locking fails, Terraform will not continue.
+
+- You can disable state locking for most commands with the -lock flag but it is not recommended.
+
+- If acquiring the lock is taking longer than expected, Terraform will output a status message.
+
+- terraform automatically lock the state, perform the terraform action and Unlocks the state.
+
+- We can simulate the lock error: 
+1/ run terraform apply (while it will ask for approval)
+2/ run terraform plan from another terminal.
+
+$ terraform plan 
+╷
+│ Error: Error acquiring the state lock
+│ 
+│ Error message: resource temporarily unavailable
+│ Lock Info:
+│   ID:        12539757-2587-36f7-079c-687437950bb8
+│   Path:      terraform.tfstate
+│   Operation: OperationTypeApply
+│   Who:       sandip@Sandips-MacBook-Air.local
+│   Version:   1.3.7
+│   Created:   2023-02-04 13:45:00.428359 +0000 UTC
+│   Info:      
+│ 
+│ 
+│ Terraform acquires a state lock to protect the state from being written
+│ by multiple users at the same time. Please resolve the issue above and try
+│ again. For most commands, you can disable locking with the "-lock=false"
+│ flag, but this is not recommended.
+
+
+
+
+.terraform.tfstate.lock.info
+------------------------------
+
+- terraform creates a temporary file: .terraform.tfstate.lock.info in the current working
+directory during the time of any teraform action (apply/destroy) being executed.
+
+- Through this file terraform knows there is some ongoing lock.
+
+file content:
+--------------
+{"ID":"70164746-cb2a-8dc7-f799-a6ce0cd97d88","Operation":"OperationTypeApply","Info":"","Who":"sandip@Sandips-MacBook-Air.local","Version":"1.3.7","Created":"2023-02-04T13:52:07.028203Z","Path":"terraform.tfstate"}
+
+Force Unlock
+---------------------
+Usage
+Usage: terraform force-unlock [options] LOCK_ID
+
+- terraform force-unlock Manually unlock the state for the defined configuration.
+
+- This will not modify your infrastructure.
+
+- If you unlock the state when someone else is holding the lock it could cause multiple writers.
+
+- Force unlock should only be used to unlock your own lock in the situation where 
+automatic unlocking failed.
+
+- To protect you, the force-unlock command requires a unique lock ID. 
+
+- Terraform will output this lock ID if unlocking fails. ensuring that locks and unlocks 
+target the correct lock.
+
+
+
+

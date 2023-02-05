@@ -1,0 +1,7 @@
+resource "aws_eip" "my_eip" {
+  vpc = true
+}
+
+output "my_eip_public_ip" {
+  value = aws_eip.my_eip.public_ip
+}

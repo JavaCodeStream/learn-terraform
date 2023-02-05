@@ -1,0 +1,546 @@
+The terraform_remote_state Data Source
+================================================================
+- The terraform_remote_state data source uses the latest state snapshot from a 
+specified state backend of a terraform project to retrieve the root module output values.
+- Use these extracted output values as an input to other Terraform configuration of separate
+project.
+
+- use the terraform_remote_state data source without requiring or configuring a provider.
+
+- Its available through a built-in provider terraform.io/builtin/terraform
+
+Drawbacks
+------------------
+- Although terraform_remote_state only exposes output values, its user must have access 
+to the entire state snapshot, which often includes some sensitive information.
+
+- terraform recommends explicitly publishing data for external consumption to a separate 
+location instead of accessing it via remote state. This lets you apply different access 
+controls for shared information and state snapshots.
+
+- a separate explicit configuration store instead of terraform_remote_state is that the data 
+can potentially also be read by systems other than Terraform
+
+
+
+terraform_remote_state data block
+-------------------------------------
+data "terraform_remote_state" "<any_name>" {
+    backend = "s3"
+
+    config = {
+        bucket = "kplabs-terraform-backend"     # s3 bucket
+        key    = "network/eip.tfstate"          # s3 path ket of state file
+        region = "us-east-1"                    # region of s3
+    }
+}
+
+arguments:
+- backend : (Required) The remote backend to use.
+- config  : (Optional; object) The configuration of the remote backend. most backends require 
+some configuration.
+
+- Usage syntax from other TF config:
+data.terraform_remote_state.<name>.outputs.<only_the_exposed_output_values>
+
+
+NOTE: We can even use terraform_remote_state for local backend
+
+data "terraform_remote_state" "<name>" {
+  backend = "local"
+
+  config = {
+    path = "${path.module}/../../terraform.tfstate"
+  }
+}
+
+
+
+
+========================================================================================
+Hands-On (*** Using local backend ***)
+========================================================================================
+- project structure:
+
+$ pwd
+/learn-terraform/terraform-state/terraform-remote-state-data-source/local-state-example
+
+$ tree 
+.
+├── project1
+│   ├── local-random.tf
+│   └── terraform.tfstate
+└── project2
+    └── local-file.tf
+
+$ cd project1
+
+project1/local-random.tf
+-------------------------
+resource "random_pet" "my_pet" {
+  prefix    = "Mrs"
+  separator = "."
+  length    = "1"
+}
+
+output "my_pet_name" {
+  value = random_pet.my_pet.id
+}
+
+
+$ terraform init
+
+$ terraform apply -auto-approve
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+my_pet_name = "Mrs.longhorn"
+
+
+$ terraform state pull
+
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 2,
+  "lineage": "cec98eca-552e-402f-703c-d45fe44cf74b",
+  "outputs": {
+    "my_pet_name": {
+      "value": "Mrs.longhorn",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "random_pet",
+      "name": "my_pet",
+      "provider": "provider[\"registry.terraform.io/hashicorp/random\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "Mrs.longhorn",
+            "keepers": null,
+            "length": 1,
+            "prefix": "Mrs",
+            "separator": "."
+          },
+          "sensitive_attributes": []
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
+
+
+---------------------------------------------------------------------
+
+- Now change directory to separate project: project2
+
+$ cd ../project2
+
+$ tree
+.
+└── local-file.tf
+
+
+project2/local-file.tf
+-------------------------
+data "terraform_remote_state" "local_random_pet_ref" {
+    backend = "local"
+    config = {
+      path = "${path.module}/../project1/terraform.tfstate"
+    }
+}
+
+resource "local_file" "my_local_file" {
+  filename = "${path.module}/my_local_file.txt"
+  content  = data.terraform_remote_state.local_random_pet_ref.outputs.my_pet_name
+}
+
+output "my_local_file_content" {
+    value = local_file.my_local_file.content
+}
+
+
+
+
+IMP NOTE: terraform init automatically downloads the builtin provider 
+"terraform.io/builtin/terraform" from which we get "terraform_remote_state" data source.
+
+$ terraform init 
+
+Initializing the backend...
+
+Initializing provider plugins...
+- terraform.io/builtin/terraform is built in to Terraform
+- Finding latest version of hashicorp/local...
+- Installing hashicorp/local v2.3.0...
+- Installed hashicorp/local v2.3.0 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform has been successfully initialized!
+
+
+$ terraform apply -auto-approve
+
+data.terraform_remote_state.local_random_pet_ref: Reading...
+data.terraform_remote_state.local_random_pet_ref: Read complete after 0s
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the
+following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # local_file.my_local_file will be created
+  + resource "local_file" "my_local_file" {
+      + content              = "Mrs.longhorn"
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "./my_local_file.txt"
+      + id                   = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + my_local_file_content = "Mrs.longhorn"
+local_file.my_local_file: Creating...
+local_file.my_local_file: Creation complete after 0s [id=2dc816e8f6c6d4144044c77cd10211de166705a9]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+my_local_file_content = "Mrs.longhorn"
+
+
+
+$ cat my_local_file.txt 
+
+Mrs.longhorn
+
+
+
+
+
+
+
+========================================================================================
+Hands-On (*** Using remote S3 backend ***)
+========================================================================================
+
+- project structure:
+
+$ pwd
+
+/learn-terraform/terraform-state/terraform-remote-state-data-source/remote-state-example
+
+$ tree
+.
+├── project1
+│   ├── backend.tf
+│   ├── main_eip.tf
+│   └── providers.tf
+└── project2
+    ├── main_sg.tf
+    └── providers.tf
+
+
+project1/backend.tf
+---------------------
+terraform {
+  backend "s3" {
+    bucket = "pausan-terraform-state"
+    key    = "tf-remote-state-data-src/eip_terraform.tfstate"
+    region = "ap-south-1"
+  }
+}
+
+
+project1/providers.tf
+---------------------
+provider "aws" {
+  region     = "ap-south-1"
+}
+
+
+
+project1/main_eip.tf
+---------------------
+resource "aws_eip" "my_eip" {
+  vpc = true
+}
+
+output "my_eip_public_ip" {
+  value = aws_eip.my_eip.public_ip
+}
+
+
+$ export AWS_ACCESS_KEY_ID="<>"
+$ export AWS_SECRET_ACCESS_KEY="<>"
+
+
+$ terraform init
+
+
+$ terraform validate 
+Success! The configuration is valid.
+
+
+$ terraform apply -auto-approve
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + my_eip_public_ip = (known after apply)
+aws_eip.my_eip: Creating...
+aws_eip.my_eip: Creation complete after 1s [id=eipalloc-0179044eda3727c8e]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+my_eip_public_ip = "43.205.44.10"
+
+
+
+$ tree -a .
+.
+├── .terraform
+│   ├── providers
+│   │   └── registry.terraform.io
+│   │       └── hashicorp
+│   │           └── aws
+│   │               └── 4.53.0
+│   │                   └── darwin_arm64
+│   │                       └── terraform-provider-aws_v4.53.0_x5
+│   └── terraform.tfstate
+├── .terraform.lock.hcl
+├── backend.tf
+├── main_eip.tf
+└── providers.tf
+
+
+
+
+$ terraform state pull
+
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 0,
+  "lineage": "5c32255b-d95a-3596-829e-f665ef8ee0cd",
+  "outputs": {
+    "my_eip_public_ip": {
+      "value": "43.205.44.10",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_eip",
+      "name": "my_eip",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "address": null,
+            "allocation_id": "eipalloc-0179044eda3727c8e",
+            "associate_with_private_ip": null,
+            "association_id": "",
+            "carrier_ip": "",
+            "customer_owned_ip": "",
+            "customer_owned_ipv4_pool": "",
+            "domain": "vpc",
+            "id": "eipalloc-0179044eda3727c8e",
+            "instance": "",
+            "network_border_group": "ap-south-1",
+            "network_interface": "",
+            "private_dns": null,
+            "private_ip": "",
+            "public_dns": "ec2-43-205-44-10.ap-south-1.compute.amazonaws.com",
+            "public_ip": "43.205.44.10",
+            "public_ipv4_pool": "amazon",
+            "tags": null,
+            "tags_all": {},
+            "timeouts": null,
+            "vpc": true
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiZGVsZXRlIjoxODAwMDAwMDAwMDAsInJlYWQiOjkwMDAwMDAwMDAwMCwidXBkYXRlIjozMDAwMDAwMDAwMDB9fQ=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
+
+
+
+
+--------------------------------------------------------------------------
+
+- Now change directory to project2
+
+$ tree
+.
+├── main_sg.tf
+└── providers.tf
+
+
+project2/providers.tf
+-----------------------
+provider "aws" {
+  region = "ap-south-1"
+}
+
+project2/main_sg.tf
+-----------------------
+data "terraform_remote_state" "eip" {
+  backend = "s3"
+  config = {
+    bucket = "pausan-terraform-state"
+    key    = "tf-remote-state-data-src/eip_terraform.tfstate"
+    region = "ap-south-1"
+  }
+}
+
+resource "aws_security_group" "my_sg_allow_tls" {
+  name        = "allow_tls"
+  description = "Allow TLS inbound traffic"
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["${data.terraform_remote_state.eip.outputs.my_eip_public_ip}/32"]
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+}
+
+output "my_sg_allow_tls_ingress" {
+    value = aws_security_group.my_sg_allow_tls.ingress
+}
+
+
+
+
+$ terraform init 
+
+Initializing the backend...
+
+Initializing provider plugins...
+- terraform.io/builtin/terraform is built in to Terraform
+- Finding latest version of hashicorp/aws...
+- Installing hashicorp/aws v4.53.0...
+- Installed hashicorp/aws v4.53.0 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+
+$ terraform validate 
+Success! The configuration is valid.
+
+
+
+$ terraform apply -auto-approve
+
+data.terraform_remote_state.eip: Reading...
+data.terraform_remote_state.eip: Read complete after 1s
+
+Terraform will perform the following actions:
+
+  # aws_security_group.my_sg_allow_tls will be created
+  + resource "aws_security_group" "my_sg_allow_tls" {
+      + arn                    = (known after apply)
+      + description            = "Allow TLS inbound traffic"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = ""
+              + from_port        = 0
+              + ipv6_cidr_blocks = [
+                  + "::/0",
+                ]
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = [
+                  + "43.205.44.10/32",
+                ]
+              + description      = "TLS from VPC"
+              + from_port        = 443
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 443
+            },
+        ]
+      + name                   = "allow_tls"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags_all               = (known after apply)
+      + vpc_id                 = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + my_sg_allow_tls_ingress = [
+      + {
+          + cidr_blocks      = [
+              + "43.205.44.10/32",
+            ]
+          + description      = "TLS from VPC"
+          + from_port        = 443
+          + ipv6_cidr_blocks = []
+          + prefix_list_ids  = []
+          + protocol         = "tcp"
+          + security_groups  = []
+          + self             = false
+          + to_port          = 443
+        },
+    ]
+aws_security_group.my_sg_allow_tls: Creating...
+aws_security_group.my_sg_allow_tls: Creation complete after 2s [id=sg-09cc6bbbd11cfd7de]
+
+
+NOTE: the cird block now reflects the IP from eip created as part of project1
+
++ cidr_blocks      = [
+              + "43.205.44.10/32",
+            ]
+
+

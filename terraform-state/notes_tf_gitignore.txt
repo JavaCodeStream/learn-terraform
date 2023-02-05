@@ -1,0 +1,16 @@
+.gitignore for Terraform
+==========================
+- Depending on envirnments, its is recommended to avoid commiting certain files to Git.
+
+- Github gitignore is the best place to refer, its pre-created .gitignore file based on 
+language of coding.
+
+https://github.com/github/gitignore
+
+https://github.com/github/gitignore/blob/main/Terraform.gitignore
+
+- Files/Folders to ignore (not to git commit):
+    - .terraform            :   This file gets re-created on terraform init run.
+    - terraform.tfstate     :   should be stored in remote.
+    - crash.log             :   if terraform crashed, logs are stored in crash.log file.
+    - *.tfvars              :   in case, passwords are captured in terraform.tfvars or any custom tfvars file.

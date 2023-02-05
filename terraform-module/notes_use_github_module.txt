@@ -1,0 +1,129 @@
+GIT Sources used during demo
+=============================
+
+- Create a simple terraform module like below and commit to its own github repo.
+like: https://github.com/zealvora/tmp-repo
+
+main.tf
+-------
+locals {
+  list1 = ["host1a", "host1b", "host1c"]
+}
+
+
+locals {
+  list2 = ["host2a", "host2b", "host2c"]
+}
+
+
+output "print_list1" {
+  value = local.list1
+}
+
+output "print_list2" {
+  value = local.list2
+}
+
+
+- Refer this modeul on your TF using github source module reference.
+
+main.tf
+--------
+# Using Generic GIT Repository
+
+module "demomodule1" {
+  source = "git::https://github.com/zealvora/tmp-repo.git"
+}
+
+
+# Generic GIT Repository with Specific branch
+
+module "demomodule2" {
+  source = "git::https://github.com/zealvora/tmp-repo.git?ref=development"
+}
+
+
+# Using GitHub Source:
+module "demomodule3" {
+  source = "github.com/zealvora/tmp-repo"
+}
+
+
+- Now run terraform nitialization Command. 
+NOTE: Using the git method (git::<ssh_or_https_.git_url>) causes downloading the hidden 
+.git folder, which is not same while using the github source 
+(github.com/<git_account>/<repo_name>) itself.
+
+$ terraform init
+..
+..
+
+
+$ tree -a .
+.
+├── .terraform
+│   └── modules
+│       ├── demomodule1
+│       │   ├── .git
+│       │   │   ├── HEAD
+│       │   │   ├── config
+│       │   │   ├── description
+│       │   │   ├── hooks
+│       │   │   │   ├── applypatch-msg.sample
+│       │   │   │   ├── commit-msg.sample
+│       │   │   │   ├── fsmonitor-watchman.sample
+│       │   │   │   ├── post-update.sample
+│       │   │   │   ├── pre-applypatch.sample
+│       │   │   │   ├── pre-commit.sample
+│       │   │   │   ├── pre-merge-commit.sample
+│       │   │   │   ├── pre-push.sample
+│       │   │   │   ├── pre-rebase.sample
+│       │   │   │   ├── pre-receive.sample
+│       │   │   │   ├── prepare-commit-msg.sample
+│       │   │   │   ├── push-to-checkout.sample
+│       │   │   │   └── update.sample
+│       │   │   ├── index
+│       │   │   ├── info
+│       │   │   │   └── exclude
+│       │   │   ├── logs
+│       │   │   │   ├── HEAD
+│       │   │   │   └── refs
+│       │   │   │       ├── heads
+│       │   │   │       │   └── master
+│       │   │   │       └── remotes
+│       │   │   │           └── origin
+│       │   │   │               └── HEAD
+│       │   │   ├── objects
+│       │   │   │   ├── info
+│       │   │   │   └── pack
+│       │   │   │       ├── pack-62c92c257b927da23e0385e0a44dcb396c9cecdb.idx
+│       │   │   │       └── pack-62c92c257b927da23e0385e0a44dcb396c9cecdb.pack
+│       │   │   ├── packed-refs
+│       │   │   └── refs
+│       │   │       ├── heads
+│       │   │       │   └── master
+│       │   │       ├── remotes
+│       │   │       │   └── origin
+│       │   │       │       └── HEAD
+│       │   │       └── tags
+│       │   ├── Readme.md
+│       │   └── demo.tf
+│       ├── demomodule2
+│       │   ├── .git
+│       │   │   ├── ..
+│       │   │   ├── ..
+│       │   ├── Readme.md
+│       │   ├── demo.tf
+│       │   └── terraform.tfvars
+│       ├── demomodule3
+│       │   ├── Readme.md
+│       │   └── demo.tf
+│       └── modules.json
+└── main.tf
+
+38 directories, 63 files
+
+
+
+
+

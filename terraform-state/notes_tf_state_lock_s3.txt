@@ -1,0 +1,266 @@
+State Locking with S3 backend
+=====================================
+- By default S3 does not terraform state locking.
+
+- Use DynamoDb table to enable.
+
+- terraform.tfstate file is stored in S3 bucket.
+
+- the state lock info gets persisted in DynamoDB.
+
+
+Lets see what happend when we dont enable DynamoDB
+====================================================
+s3_state_lock.tf
+-----------------
+terraform {
+  backend "s3" {
+    bucket = "pausan-terraform-state"
+    key    = "network/demo.tfstate"
+    region = "ap-south-1"
+    # dynamodb_table = "terraform-state-locking"
+  }
+}
+
+resource "time_sleep" "wait_150_seconds" {
+  create_duration = "150s"
+}
+
+
+- open 1 terminal:1 and run terraform init to initialize the remote state first.
+- run terraform apply on same terminal:1
+
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-state/state-lock-backend_s3
+
+$ tree
+.
+└── s3_state_lock.tf
+
+
+------------------
+
+$ terraform init 
+
+Initializing the backend...
+
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/time...
+- Installing hashicorp/time v0.9.1...
+- Installed hashicorp/time v0.9.1 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+------------------
+
+
+$ terraform apply -auto-approve
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated
+with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # time_sleep.wait_150_seconds will be created
+  + resource "time_sleep" "wait_150_seconds" {
+      + create_duration = "150s"
+      + id              = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+time_sleep.wait_150_seconds: Creating...
+time_sleep.wait_150_seconds: Still creating... [10s elapsed]
+time_sleep.wait_150_seconds: Still creating... [20s elapsed]
+time_sleep.wait_150_seconds: Still creating... [30s elapsed]
+..
+..
+
+
+-----------------
+
+- Now while the time_sleep.wait_150_seconds is still under creation since we added sleep.
+
+- Open another terminal terminal:2 and run terrafom plan. there wont be any lock error.
+
+
+$ terraform plan 
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated
+with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # time_sleep.wait_150_seconds will be created
+  + resource "time_sleep" "wait_150_seconds" {
+      + create_duration = "150s"
+      + id              = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+
+
+
+
+
+Lets see what happend when we enable DynamoDB
+====================================================
+https://developer.hashicorp.com/terraform/language/settings/backends/s3#dynamodb-state-locking
+
+NOTE: we need to give DynamoDB policy access to terraform user.
+
+- AmazonDynamoDBFullAccess (we have given full access for now.)
+
+DynamoDB Table Permissions
+---------------------------
+- Terraform will need the following AWS IAM permissions on the 
+DynamoDB table (arn:aws:dynamodb:::table/<mytable_tf_state_lock>):
+
+    - dynamodb:DescribeTable
+    - dynamodb:GetItem
+    - dynamodb:PutItem
+    - dynamodb:DeleteItem
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:*:*:table/<mytable_tf_state_lock>"
+    }
+  ]
+}
+
+
+- go to AWS console, create a new DynamoDb table ex: terraform-state-locking
+
+- The table must have a partition key named 'LockID' with type of String
+
+
+- Add 'dynamodb_table' attribute to terraform backend block.
+
+s3_state_lock_dynamodb.tf
+--------------------------
+terraform {
+  backend "s3" {
+    bucket = "pausan-terraform-state"
+    key    = "network/lock-dynamodb.tfstate"
+    region = "ap-south-1"
+    dynamodb_table = "terraform-state-locking"
+  }
+}
+
+resource "time_sleep" "wait_150_seconds" {
+  create_duration = "150s"
+}
+
+
+-------------------
+
+$ terraform init
+
+Initializing the backend...
+
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/time...
+- Installing hashicorp/time v0.9.1...
+- Installed hashicorp/time v0.9.1 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+
+-----------
+
+$ terraform apply -auto-approve
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated
+with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # time_sleep.wait_150_seconds will be created
+  + resource "time_sleep" "wait_150_seconds" {
+      + create_duration = "150s"
+      + id              = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+time_sleep.wait_150_seconds: Creating...
+time_sleep.wait_150_seconds: Still creating... [10s elapsed]
+time_sleep.wait_150_seconds: Still creating... [20s elapsed]
+..
+..
+
+
+----------------
+
+- On separate terminal:
+
+$ terraform plan 
+╷
+│ Error: Error acquiring the state lock
+│ 
+│ Error message: ConditionalCheckFailedException: The conditional request failed
+│ Lock Info:
+│   ID:        ab90130e-e8f2-bef6-962f-b0ea6150e93d
+│   Path:      pausan-terraform-state/network/lock-dynamodb.tfstate
+│   Operation: OperationTypeApply
+│   Who:       sandip@Sandips-MacBook-Air.local
+│   Version:   1.3.7
+│   Created:   2023-02-04 14:39:08.841937 +0000 UTC
+│   Info:      
+│ 
+│ 
+│ Terraform acquires a state lock to protect the state from being written
+│ by multiple users at the same time. Please resolve the issue above and try
+│ again. For most commands, you can disable locking with the "-lock=false"
+│ flag, but this is not recommended.
+
+
+
+
+
+$ aws s3 ls s3://pausan-terraform-state/network/
+
+2023-02-04 14:42:24          0 
+2023-02-04 19:42:58        658 demo.tfstate
+2023-02-04 20:11:41        658 lock-dynamodb.tfstate
+2023-02-04 16:50:11       1563 terraform.tfstate
+
+
+
+- Querying the dynamoDB tables shows, there is one row with 
+2 columns (LockID, Digest)
+
+LockID: pausan-terraform-state/network/lock-dynamodb.tfstate-md5
+Digest: 0a37617c741df9fb477cf61ff314113b
+
+
+- This is the same Lock details shows on terraform locking error:
+    - Path, who has acquired (sandip@Sandips-MacBook-Air.local), 
+    when (2023-02-04 14:39:08), what tf action (OperationTypeApply), etc.
+
+Lock Info:
+│   ID:        ab90130e-e8f2-bef6-962f-b0ea6150e93d
+│   Path:      pausan-terraform-state/network/lock-dynamodb.tfstate
+│   Operation: OperationTypeApply
+│   Who:       sandip@Sandips-MacBook-Air.local
+|   Created:   2023-02-04 14:39:08.841937 +0000 UTC
+
+
+
