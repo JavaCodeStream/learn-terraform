@@ -5,6 +5,7 @@ List of commands:
 Primary:
 1/ terraform init
 2/ terraform plan
+2b/ terraform plan -out=demopath
 3/ terraform apply  (optional -auto-approve to avoide confirming action)
 4/ terraform destroy (optional -auto-approve to avoide confirming action)
 4b/ terraform fmt
@@ -30,6 +31,10 @@ it modified, if any.
 14/ terraform validate                  - make sure your configuration is syntactically valid &
 must run only after terraform init
 
+
+Special:
+1/ terraform taint
+2/ terraform graph
 
 
 
@@ -298,6 +303,29 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 Outputs:
 
 my_local_filename = "./my_local_file.txt"
+
+
+terraform plan -out=demopath
+-----------------------------
+provider "aws" {
+  region     = "ap-south-1"
+  access_key = "YOUR-ACCESS-KEY"
+  secret_key = "YOUR-SECRET-KEY"
+}
+
+resource "aws_instance" "myec2" {
+   ami           = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+   instance_type = "t2.micro"
+}
+
+Command:
+NOTE: demopath is a binary file.
+$ terraform plan -out=demopath
+
+
+- Now to apply terraform from the above stored file:
+$ terraform apply demopath
+
 
 
 terraform refresh
@@ -638,4 +666,495 @@ $ terraform validate
 │ required_providers objects can only contain "version", "source" and "configuration_aliases" attributes. To configure a provider, use a
 │ "provider" block.
 
+
+
+
+terraform taint
+============================================================================
+- Usage: terraform taint <resource_type>.<resource_name>
+
+- This command forces terraform to re-create the resource in subsequent terraform plan/apply
+
+- Lets understand this with a usecase.
+
+- We have created a new resource via Terraform.
+
+- But unfortunately, others in the same team, have made a lot of manual changes (both 
+infrastructure and inside the server i.e. at the installed software level)
+
+- Now, on terraform plan, its shows multiple changes to take effect.
+
+- 2 ways to deal:
+  - Import the changes to Terraform which is tedious and manual.
+  - Delete & Re-create the resource so that it comes back to the exact config we have defind
+  within the TF config.
+
+- So, with help of terraform taint command we can manually, mark a terraform managed 
+resource as tained, forcing it to be destroyed and re-created on next apply.
+
+- terraform taint command does not modify the physical infra instead just updates
+the state file with status as "tainted"
+
+- next time when we do terraform plan, terraform will show the plan where the resource
+will be destroyed and re-created from scratch, next apply will destroy and re-create.
+
+- 
+
+$ tree
+.
+└── taint.tf
+
+taint.tf
+----------
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myec2" {
+  ami           = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+  instance_type = "t2.micro"
+}
+
+
+
+$ terraform init 
+
+
+$ terraform apply -auto-approve
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+aws_instance.myec2: Creating...
+aws_instance.myec2: Still creating... [10s elapsed]
+aws_instance.myec2: Still creating... [20s elapsed]
+aws_instance.myec2: Still creating... [30s elapsed]
+aws_instance.myec2: Creation complete after 32s [id=i-08f58aff293cc5440]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+
+
+$ terraform state list
+aws_instance.myec2
+
+
+$ terraform state pull
+
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 1,
+  "lineage": "280a9263-9a5c-6fbb-c440-9e819b7de1ec",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "myec2",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "ami": "ami-01a4f99c4ac11b03c",
+            "arn": "arn:aws:ec2:ap-south-1:295631050085:instance/i-08f58aff293cc5440",
+            "associate_public_ip_address": true,
+            "availability_zone": "ap-south-1b",
+            "capacity_reservation_specification": [
+              {
+                "capacity_reservation_preference": "open",
+                "capacity_reservation_target": []
+              }
+            ],
+            "cpu_core_count": 1,
+            "cpu_threads_per_core": 1,
+            "credit_specification": [
+              {
+                "cpu_credits": "standard"
+              }
+            ],
+            "disable_api_stop": false,
+            "disable_api_termination": false,
+            "ebs_block_device": [],
+            "ebs_optimized": false,
+            "enclave_options": [
+              {
+                "enabled": false
+              }
+            ],
+            "ephemeral_block_device": [],
+            "get_password_data": false,
+            "hibernation": false,
+            "host_id": "",
+            "host_resource_group_arn": null,
+            "iam_instance_profile": "",
+            "id": "i-08f58aff293cc5440",
+            "instance_initiated_shutdown_behavior": "stop",
+            "instance_state": "running",
+            "instance_type": "t2.micro",
+            "ipv6_address_count": 0,
+            "ipv6_addresses": [],
+            "key_name": "",
+            "launch_template": [],
+            "maintenance_options": [
+              {
+                "auto_recovery": "default"
+              }
+            ],
+            "metadata_options": [
+              {
+                "http_endpoint": "enabled",
+                "http_put_response_hop_limit": 1,
+                "http_tokens": "optional",
+                "instance_metadata_tags": "disabled"
+              }
+            ],
+            "monitoring": false,
+            "network_interface": [],
+            "outpost_arn": "",
+            "password_data": "",
+            "placement_group": "",
+            "placement_partition_number": 0,
+            "primary_network_interface_id": "eni-0056d1bcdce6ffadc",
+            "private_dns": "ip-172-31-8-229.ap-south-1.compute.internal",
+            "private_dns_name_options": [
+              {
+                "enable_resource_name_dns_a_record": false,
+                "enable_resource_name_dns_aaaa_record": false,
+                "hostname_type": "ip-name"
+              }
+            ],
+            "private_ip": "172.31.8.229",
+            "public_dns": "ec2-13-233-11-100.ap-south-1.compute.amazonaws.com",
+            "public_ip": "13.233.11.100",
+            "root_block_device": [
+              {
+                "delete_on_termination": true,
+                "device_name": "/dev/xvda",
+                "encrypted": false,
+                "iops": 100,
+                "kms_key_id": "",
+                "tags": {},
+                "throughput": 0,
+                "volume_id": "vol-06f12bf63b2aa5cf3",
+                "volume_size": 8,
+                "volume_type": "gp2"
+              }
+            ],
+            "secondary_private_ips": [],
+            "security_groups": [
+              "default"
+            ],
+            "source_dest_check": true,
+            "subnet_id": "subnet-011a1293620272feb",
+            "tags": null,
+            "tags_all": {},
+            "tenancy": "default",
+            "timeouts": null,
+            "user_data": null,
+            "user_data_base64": null,
+            "user_data_replace_on_change": false,
+            "volume_tags": null,
+            "vpc_security_group_ids": [
+              "sg-09821735d6cf83354"
+            ]
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6MTIwMDAwMDAwMDAwMCwidXBkYXRlIjo2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
+
+
+
+$ terraform taint aws_instance.myec2
+Resource instance aws_instance.myec2 has been marked as tainted.
+
+
+
+
+- added "status": "tainted" in the state file.
+
+$ terraform state pull
+
+{
+  "version": 4,
+  "terraform_version": "1.3.7",
+  "serial": 2,
+  "lineage": "280a9263-9a5c-6fbb-c440-9e819b7de1ec",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "myec2",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "status": "tainted",
+          "schema_version": 1,
+          "attributes": {
+            "ami": "ami-01a4f99c4ac11b03c",
+            "arn": "arn:aws:ec2:ap-south-1:295631050085:instance/i-08f58aff293cc5440",
+            "associate_public_ip_address": true,
+            "availability_zone": "ap-south-1b",
+            "capacity_reservation_specification": [
+              {
+                "capacity_reservation_preference": "open",
+                "capacity_reservation_target": []
+              }
+            ],
+            "cpu_core_count": 1,
+            "cpu_threads_per_core": 1,
+            "credit_specification": [
+              {
+                "cpu_credits": "standard"
+              }
+            ],
+            "disable_api_stop": false,
+            "disable_api_termination": false,
+            "ebs_block_device": [],
+            "ebs_optimized": false,
+            "enclave_options": [
+              {
+                "enabled": false
+              }
+            ],
+            "ephemeral_block_device": [],
+            "get_password_data": false,
+            "hibernation": false,
+            "host_id": "",
+            "host_resource_group_arn": null,
+            "iam_instance_profile": "",
+            "id": "i-08f58aff293cc5440",
+            "instance_initiated_shutdown_behavior": "stop",
+            "instance_state": "running",
+            "instance_type": "t2.micro",
+            "ipv6_address_count": 0,
+            "ipv6_addresses": [],
+            "key_name": "",
+            "launch_template": [],
+            "maintenance_options": [
+              {
+                "auto_recovery": "default"
+              }
+            ],
+            "metadata_options": [
+              {
+                "http_endpoint": "enabled",
+                "http_put_response_hop_limit": 1,
+                "http_tokens": "optional",
+                "instance_metadata_tags": "disabled"
+              }
+            ],
+            "monitoring": false,
+            "network_interface": [],
+            "outpost_arn": "",
+            "password_data": "",
+            "placement_group": "",
+            "placement_partition_number": 0,
+            "primary_network_interface_id": "eni-0056d1bcdce6ffadc",
+            "private_dns": "ip-172-31-8-229.ap-south-1.compute.internal",
+            "private_dns_name_options": [
+              {
+                "enable_resource_name_dns_a_record": false,
+                "enable_resource_name_dns_aaaa_record": false,
+                "hostname_type": "ip-name"
+              }
+            ],
+            "private_ip": "172.31.8.229",
+            "public_dns": "ec2-13-233-11-100.ap-south-1.compute.amazonaws.com",
+            "public_ip": "13.233.11.100",
+            "root_block_device": [
+              {
+                "delete_on_termination": true,
+                "device_name": "/dev/xvda",
+                "encrypted": false,
+                "iops": 100,
+                "kms_key_id": "",
+                "tags": {},
+                "throughput": 0,
+                "volume_id": "vol-06f12bf63b2aa5cf3",
+                "volume_size": 8,
+                "volume_type": "gp2"
+              }
+            ],
+            "secondary_private_ips": [],
+            "security_groups": [
+              "default"
+            ],
+            "source_dest_check": true,
+            "subnet_id": "subnet-011a1293620272feb",
+            "tags": null,
+            "tags_all": {},
+            "tenancy": "default",
+            "timeouts": null,
+            "user_data": null,
+            "user_data_base64": null,
+            "user_data_replace_on_change": false,
+            "volume_tags": null,
+            "vpc_security_group_ids": [
+              "sg-09821735d6cf83354"
+            ]
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6MTIwMDAwMDAwMDAwMCwidXBkYXRlIjo2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
+
+
+
+
+$ terraform plan 
+
+aws_instance.myec2: Refreshing state... [id=i-08f58aff293cc5440]
+
+Terraform used the selected providers to generate the following execution plan. 
+Resource actions are indicated with the
+following symbols:
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # aws_instance.myec2 is tainted, so must be replaced
+..
+..
+..
+Plan: 1 to add, 0 to change, 1 to destroy.
+
+
+
+
+
+terraform graph
+=========================================================================
+- The terraform graph command is used to generate a visual representation of either 
+a configuration or execution plan.
+
+- The output is in the DOT format, which can be used by GraphViz to generate charts.
+
+- Usage: terraform graph [options]
+
+- GraphiViz Documentation Referred in Course:
+https://graphviz.gitlab.io/download/
+
+Generating Images
+------------------
+- The graph is outputted in DOT format. The typical program that can read this format is 
+GraphViz, but many web services are also available to read this format.
+
+- The output of terraform graph is in the DOT format, which can easily be converted to 
+an image by making use of dot provided by GraphViz:
+
+$ terraform graph | dot -Tsvg > graph.svg
+
+Hands-On
+-------------------------------------------------------------------------
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-commands/tf-graph
+
+$ tree
+.
+└── graph.tf
+
+graph.tf
+---------
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "my_ec2" {
+  ami           = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+  instance_type = "t2.micro"
+}
+
+resource "aws_eip" "my_eip" {
+  instance = aws_instance.my_ec2.id
+  vpc      = true
+}
+
+resource "aws_security_group" "my_sg" {
+  name = "my_sg"
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["${aws_eip.my_eip.private_ip}/32"]
+
+  }
+}
+
+
+$ terraform init
+
+$ terraform graph > graph.dot
+
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── aws
+│                   └── 4.53.0
+│                       └── darwin_arm64
+│                           └── terraform-provider-aws_v4.53.0_x5
+├── .terraform.lock.hcl
+├── graph.dot
+└── graph.tf
+
+8 directories, 4 files
+
+
+
+- terraform graph written the terraform's graph representation data in text format 
+in graph.dot file.
+- This file can be converted to graph like image using GraphiViz app.
+
+graph.dot
+----------
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] aws_eip.my_eip (expand)" [label = "aws_eip.my_eip", shape = "box"]
+		"[root] aws_instance.my_ec2 (expand)" [label = "aws_instance.my_ec2", shape = "box"]
+		"[root] aws_security_group.my_sg (expand)" [label = "aws_security_group.my_sg", shape = "box"]
+		"[root] provider[\"registry.terraform.io/hashicorp/aws\"]" [label = "provider[\"registry.terraform.io/hashicorp/aws\"]", shape = "diamond"]
+		"[root] aws_eip.my_eip (expand)" -> "[root] aws_instance.my_ec2 (expand)"
+		"[root] aws_instance.my_ec2 (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/aws\"]"
+		"[root] aws_security_group.my_sg (expand)" -> "[root] aws_eip.my_eip (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/aws\"] (close)" -> "[root] aws_security_group.my_sg (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/aws\"] (close)"
+	}
+}
+
+
+
+- Install graphviz on Mac using brew. takes a little longer time.
+
+$ brew install graphviz
+
+
+- Now run the below command to convert the graph.dot file to graoh.svg
+
+$ cat graph.dot | dot -Tsvg > graph.svg
+
+$ tree
+.
+├── graph.dot
+├── graph.svg
+└── graph.tf
+
+
+- Now, this graph.svg can be opened using the chrome browser and show a graph like image.
 

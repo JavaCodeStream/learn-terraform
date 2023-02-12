@@ -1,0 +1,65 @@
+Debugging Terraform
+================================================================
+- Terraform has detailed logs that you can enable by setting the TF_LOG environment 
+variable to any value. 
+
+- Enabling this setting causes detailed logs to appear on stderr.
+
+- You can set TF_LOG to one of the log levels (in order of decreasing verbosity) TRACE, 
+DEBUG, INFO, WARN or ERROR to change the verbosity of the logs.
+
+- By default, TF LOG level is disabled. It just show the status on any terraform action.
+
+$ export TF_LOG=TRACE
+
+$ terraform plan   # shows details more logs.
+
+
+- Now, its not convenient to see all the trace level logs always shown on the console during every
+terraform action (plan/apply/destroy)
+
+- For that, we can set TF_LOG_PATH in order to force the log to always be appended to a 
+specific file when logging is enabled
+
+$ export TF_LOG_PATH=/tmp/terraform-trace.log
+
+
+
+Hands-on
+-------------------------------------------------
+$ pwd
+/Users/sandip/box/work/learnings/terraform/learn-terraform/terraform-data-source
+
+$ tree -a .
+.
+├── .terraform
+│   └── providers
+│       └── registry.terraform.io
+│           └── hashicorp
+│               └── aws
+│                   └── 4.53.0
+│                       └── darwin_arm64
+│                           └── terraform-provider-aws_v4.53.0_x5
+├── .terraform.lock.hcl
+├── data-source.tf
+└── notes.txt
+
+
+
+$ export TF_LOG=TRACE
+
+
+$ export TF_LOG_PATH=/tmp/terraform-trace.log
+
+$ tail -10f /tmp/terraform-trace.log 
+
+  provider["registry.terraform.io/hashicorp/aws"] - *terraform.NodeApplyableProvider
+  provider["registry.terraform.io/hashicorp/aws"] (close) - *terraform.graphNodeCloseProvider
+    aws_instance.instance-1 - *terraform.NodeApplyableResourceInstance
+  root - *terraform.nodeCloseModule
+    provider["registry.terraform.io/hashicorp/aws"] (close) - *terraform.graphNodeCloseProvider
+  ------
+2023-02-05T19:44:00.744+0530 [INFO]  backend/local: plan operation completed
+2023-02-05T19:44:00.744+0530 [TRACE] LoadSchemas: retrieving schema for provider type "registry.terraform.io/hashicorp/aws"
+2023-02-05T19:44:00.750+0530 [TRACE] statemgr.Filesystem: removing lock metadata file .terraform.tfstate.lock.info
+2023-02-05T19:44:00.750+0530 [TRACE] statemgr.Filesystem: unlocking terraform.tfstate using fcntl flock

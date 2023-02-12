@@ -1,0 +1,129 @@
+dynamic Blocks
+==========================================================================
+- Dynamic Block allows us to dynamically construct repeatable nested blocks which is
+supported inside resource, data, provider and provisioner blocks.
+
+- It is not possible to generate meta-argument blocks such as lifecycle and provisioner blocks, 
+since Terraform must process these before it is safe to evaluate expressions.
+
+- A typical example is Resource: aws_security_group
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group
+
+- A aws_security_group block needs to add multiple no. of ingress/egress nested blocks
+to apply its inbound/outbound firewall rules.
+
+- Now, adding multiple nested ingress/egress block with its ports is not ideal when we have
+more no. (10s-50s) of firewall rules to manage.
+
+example:
+
+A security_group resource without Dynamic block:
+----------------------------------------------------
+
+demo_sg_without_dynamic_block.tf
+---------------------------------
+resource "aws_security_group" "demo_sg" {
+  name        = "sample-sg"
+
+  ingress {
+    from_port   = 8200
+    to_port     = 8200
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 8201
+    to_port     = 8201
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 8300
+    to_port     = 8300
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 9200
+    to_port     = 9200
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 9500
+    to_port     = 9500
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+
+
+A security_group resource using Dynamic block:
+----------------------------------------------------
+
+variable "sg_ports" {
+  type        = list(number)
+  description = "list of ingress ports"
+  default     = [8200, 8201,8300, 9200, 9500]
+}
+
+resource "aws_security_group" "dynamicsg" {
+  name        = "dynamic-sg"
+  description = "Ingress for Vault"
+
+  dynamic "ingress" {
+    for_each = var.sg_ports
+    iterator = port
+    content {
+      from_port   = port.value
+      to_port     = port.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  dynamic "egress" {
+    for_each = var.sg_ports
+    content {
+      from_port   = egress.value
+      to_port     = egress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+}
+
+
+Here:
+- The label of the dynamic block ("ingress"/"egress" in the example above) specifies 
+what kind of nested block to generate.
+
+- The for_each argument provides the complex value to iterate over. here its a list of ports.
+
+- The iterator argument (optional) sets the name of a temporary variable that represents 
+the current element of the complex value.
+
+- If omitted, the name of the variable defaults to the label of the dynamic 
+block ("egress" in the example above).
+
+- The nested content block defines the body of each generated block.
+
+
+
+
+Best Practices for dynamic Blocks
+-----------------------------------------
+- Overuse of dynamic blocks can make configuration hard to read and maintain,
+
+- Its recommend using them only when you need to hide details in order to build a clean TF
+config.
+
+- Always write nested blocks out literally where possible.
+
+

@@ -1,0 +1,44 @@
+The for_each Meta-Argument
+====================================================
+- Version note: for_each was added in Terraform 0.12.6
+
+- By default, a resource block configures one real infrastructure object 
+
+- However, sometimes you want to manage several similar objects (like a fixed pool 
+of compute instances) without writing a separate block for each one. 
+
+- two ways to do this: count and for_each.
+
+
+- If a resource or module block includes a for_each argument whose value is a map or 
+a set of strings, Terraform creates one instance for each member of that map or set.
+
+
+Basic Syntax
+--------------
+- The for_each meta-argument accepts a map or a set of strings, and creates an 
+instance for each item in that map or set.
+
+resource "aws_iam_user" "the-accounts" {
+  for_each = toset( ["Todd", "James", "Alice", "Dottie"] )
+  name     = each.key
+}
+
+
+resource "aws_instance" "myec2" {
+    ami = "ami-0dhhdsijdsd"
+    for_each = {
+        key1 = "t2.micro"
+        key2 = "t2.medium"
+    }
+    instance_type = each.value
+    key_name = each.key
+    tags = {
+        Name = each.value
+    }
+}
+
+- So basically, we can key and value property of each object (in case of map) and parametrize
+our resource attributes values.
+
+

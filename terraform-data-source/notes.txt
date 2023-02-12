@@ -1,0 +1,127 @@
+Data Sources
+=======================================================
+- Data sources allow Terraform to use information defined outside of Terraform, 
+defined by another separate Terraform configuration.
+
+- Each provider may offer data sources alongside its set of resource types.
+
+
+Using Data Sources
+-------------------
+- A data source is accessed via a special kind of resource known as a data resource, 
+declared using a data block:
+
+ex:
+https://registry.terraform.io/providers/hashicorp/aws/3.8.0/docs/data-sources/eip
+
+Data Source: aws_eip
+
+Search By Public IP (EC2-Classic or VPC)
+
+data "aws_eip" "eip_by_public_ip" {
+  public_ip = "1.2.3.4"
+}
+
+- A data block requests Terraform to read from a given data source ("aws_eip") and export 
+the result under the given local name ("eip_by_public_ip"). 
+
+- The name ("eip_by_public_ip") is used to refer to this resource from 
+elsewhere in the same Terraform module.
+
+
+Use Case: Hands-On
+---------------------------------------------------------------------
+Suppose we need to create ec2 instances on dirrent regions. and as we know, the ami-id 
+changes as its depends on its region.
+Now, hard coding the ami-ids is also not good practice as, within a region, the ami-ids keeps
+on changing.
+
+- We can fetch the right ami-id using aws_ami data source and as within a region there are
+multiple amis available based on its OS types, hardware configs etc. We can apply
+our own filters to narrow down which type of ami we want.
+
+data-source.tf
+--------------
+provider "aws" {
+  region     = "ap-south-1"
+  access_key = "YOUR-ACCESS-KEY"
+  secret_key = "YOUR-SECRET-KEY"
+}
+
+data "aws_ami" "app_ami" {
+  most_recent = true
+  owners = ["amazon"]
+
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
+  }
+}
+
+resource "aws_instance" "instance-1" {
+    ami = data.aws_ami.app_ami.id
+    instance_type = "t2.micro"
+}
+
+
+Here: 
+- data "aws_ami" data source is used.
+- most_recent = true is to get the latest version of ami.
+- owners = ["amazon"] .. as we want Amazon maintained ami.
+- applied the filter regex for extracting the ami by name like "amzn2-ami-hvm*"
+
+
+$ tree
+.
+├── data-source.tf
+
+
+$ terraform init
+
+
+$ terraform plan 
+
+data.aws_ami.app_ami: Reading...
+data.aws_ami.app_ami: Read complete after 0s [id=ami-04155bc230e70436c]
+..
+..
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+
+- So, from the above terraform plan output, we get the [id=ami-04155bc230e70436c]
+
+
+- Lets change the region to "us-east-1"
+
+provider "aws" {
+  region     = "us-east-1"
+}
+
+data "aws_ami" "app_ami" {
+  most_recent = true
+  owners = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
+  }
+}
+
+resource "aws_instance" "instance-1" {
+    ami = data.aws_ami.app_ami.id
+    instance_type = "t2.micro"
+}
+
+
+- run terraform plan again and we will see this time ami shows: [id=ami-007868005aea67c54]
+
+$ terraform plan 
+data.aws_ami.app_ami: Reading...
+data.aws_ami.app_ami: Read complete after 1s [id=ami-007868005aea67c54]
+
+..
+..
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+

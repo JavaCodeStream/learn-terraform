@@ -1,0 +1,52 @@
+Terraform Settings
+====================================================================
+- The special terraform configuration block type is used to configure some behaviors 
+of Terraform itself, such as requiring a minimum Terraform version to apply your configuration.
+
+
+Terraform Block Syntax
+------------------------
+- Terraform settings are gathered together into terraform blocks:
+
+terraform {
+  # ...
+}
+
+
+- The various options supported within a terraform block are described in the following sections.
+
+    - Configuring Terraform Cloud
+        - The nested cloud block configures Terraform Cloud for enabling its CLI-driven run workflow.
+
+    - Configuring a Terraform Backend
+        - The nested backend block configures which state backend Terraform should use.
+
+    - Specifying a Required Terraform Version
+        terraform {
+            required_version = "> 0.12.0"
+        }
+
+    - Specifying Provider Requirements
+        - The required_providers block specifies all of the providers required by the current module.
+
+        terraform {
+            required_providers {
+                aws = {
+                version = ">= 2.7.0"
+                source = "hashicorp/aws"
+                }
+            }
+        }
+
+
+
+
+
+
+
+terraform {
+  required_version = "< 0.11"
+  required_providers {
+    aws = "~> 2.0"
+  }
+}

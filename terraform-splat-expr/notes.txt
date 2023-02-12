@@ -1,0 +1,108 @@
+Splat Expressions
+==========================================================
+- It allows us to get a list of all the attributes.
+
+- If var.list is a list of objects that all have an attribute id, then a list of the ids 
+could be produced with the following for expression:
+
+[for o in var.list : o.id]
+
+
+- This is equivalent to the following splat expression:
+
+var.list[*].id
+
+
+example:
+
+splat.tf
+--------
+provider "aws" {
+  region     = "us-west-2"
+  access_key = "YOUR-ACCESS-KEY"
+  secret_key = "YOUR-SECRET-KEY"
+}
+resource "aws_iam_user" "my_iam_user" {
+  name = "iamuser.${count.index}"
+  count = 3
+  path = "/system/"
+}
+
+output "arns" {
+  value = aws_iam_user.my_iam_user[*].arn
+}
+
+
+
+$ terraform init 
+
+
+$ terraform apply -auto-approve
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the
+following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_iam_user.my_iam_user[0] will be created
+  + resource "aws_iam_user" "my_iam_user" {
+      + arn           = (known after apply)
+      + force_destroy = false
+      + id            = (known after apply)
+      + name          = "iamuser.0"
+      + path          = "/system/"
+      + tags_all      = (known after apply)
+      + unique_id     = (known after apply)
+    }
+
+  # aws_iam_user.my_iam_user[1] will be created
+  + resource "aws_iam_user" "my_iam_user" {
+      + arn           = (known after apply)
+      + force_destroy = false
+      + id            = (known after apply)
+      + name          = "iamuser.1"
+      + path          = "/system/"
+      + tags_all      = (known after apply)
+      + unique_id     = (known after apply)
+    }
+
+  # aws_iam_user.my_iam_user[2] will be created
+  + resource "aws_iam_user" "my_iam_user" {
+      + arn           = (known after apply)
+      + force_destroy = false
+      + id            = (known after apply)
+      + name          = "iamuser.2"
+      + path          = "/system/"
+      + tags_all      = (known after apply)
+      + unique_id     = (known after apply)
+    }
+
+Plan: 3 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + arns_0_index = (known after apply)
+  + arns_all     = [
+      + (known after apply),
+      + (known after apply),
+      + (known after apply),
+    ]
+aws_iam_user.my_iam_user[1]: Creating...
+aws_iam_user.my_iam_user[2]: Creating...
+aws_iam_user.my_iam_user[0]: Creating...
+aws_iam_user.my_iam_user[1]: Creation complete after 1s [id=iamuser.1]
+aws_iam_user.my_iam_user[2]: Creation complete after 1s [id=iamuser.2]
+aws_iam_user.my_iam_user[0]: Creation complete after 1s [id=iamuser.0]
+
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+arns_0_index = "arn:aws:iam::295631050085:user/system/iamuser.0"
+arns_all = [
+  "arn:aws:iam::295631050085:user/system/iamuser.0",
+  "arn:aws:iam::295631050085:user/system/iamuser.1",
+  "arn:aws:iam::295631050085:user/system/iamuser.2",
+]
+
+
