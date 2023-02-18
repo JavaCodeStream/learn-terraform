@@ -1,0 +1,65 @@
+Sensitive parameter on output 
+===================================
+- With organization managing their entire infra in terraform, it is likely that we will
+some Sensitive info embedded in the code.
+
+- When working with a field that contains info likely to be considered sensitive, it is best 
+to set the sensitive property to true.
+
+ex:
+
+output "db_password" {
+    values = aws_db_instance.db_password
+    description = "password for DB login"
+    sensitive = true
+}
+
+
+- setting the sensitive to 'true' will prevent the field's value from showing up in CLI 
+output and in Terraform Cloud.
+
+- BUT its will still be visible on terraform state file.
+
+
+Hands-on
+---------
+
+locals {
+  db_password = {
+    admin = "password"
+  }
+}
+
+output "db_password" {
+  value = local.db_password
+  sensitive   = true
+}
+
+
+$ terraform init
+
+
+
+$ terraform apply 
+
+Changes to Outputs:
+  + db_password = (sensitive value)
+
+You can apply this plan to save these new output values to the Terraform state, without changing any real infrastructure.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+db_password = <sensitive>
+
+
+
+NOTE: the db_password output is shows as <sensitive>

@@ -1,7 +1,11 @@
-AWS User setuo for Terraform Run
+AWS User setup for Terraform Run
 =====================================
 AWS account: 295631050085
 Root user: sandip.paul.aws2@gmail.com
+
+- Once the account is created. we should go to AWS bolling -> Free tier -> details list of
+the services used by you and whats permisable limit under free tier.
+
 
 - Its recommended not to use the AWS Root User for terraform executions.
 

@@ -1,0 +1,44 @@
+Hashicorp Vault
+====================
+- Hashicorp Vault is a separate product which allows organizations to securely store secrets like 
+tokens, passwords, certificates, along access management for protecting secrets.
+
+- these secrets can include database passwords, aws secret/access key, API tokens, encryption keys
+
+- This is UI driven application, once installed, we can setup all of our secrets and
+also configure them like auto rotate passwords, lease password for say 1 hr etc.
+
+
+Terraform Vault provider
+=========================
+- Terraform has a provider to connect to hashicorp Vault.
+
+- we can configure the vault provider in order to access to vault and get any secret
+and use it on our terraform config file rather, declare them in plan text on TF config
+file.
+
+ex:
+
+we have vault created: named db_creds on Hashicorp Vault.
+
+a secret in vault is key/value pair.
+
+admin/password123
+
+
+Now, we can inject this password in terraform like below:
+
+provider "vault" {
+  address = "http://127.0.0.1:8200"
+}
+
+data "vault_generic_secret" "demo" {
+  path = "secret/db_creds"
+}
+
+output "vault_secrets" {
+  value = data.vault_generic_secret.demo.data_json
+  sensitive = "true"
+}
+
+

@@ -1,0 +1,641 @@
+Terraform Cloud
+============================================================
+- Terraform Cloud is an application that helps teams use Terraform together.
+
+- It manages Terraform runs in a consistent and reliable environment, and includes 
+easy access to shared state and secret data, access controls for approving changes 
+to infrastructure
+
+- a private registry for sharing Terraform modules, detailed policy controls for 
+governing the contents of Terraform configurations, and more.
+
+- Terraform Cloud is available as a hosted service at https://app.terraform.io.
+
+- Small teams can sign up for free to connect Terraform to version control, share variables, 
+run Terraform in a stable remote environment, and securely store remote state. 
+
+
+What is Terraform Enterprise?
+-------------------------------------------------------------
+- Organizations with advanced security and compliance needs can purchase Terraform Enterprise
+
+- Its a self-hosted distribution of Terraform Cloud.
+
+- It offers enterprises a private instance that includes the advanced features available 
+in Terraform Cloud.
+
+
+
+Account creation process
+--------------------------------------------------------------
+- Google serach for "terraform cloud" -> nafigate to https://cloud.hashicorp.com/products/terraform
+
+- 'Try cloud for free'
+
+- give username: javacodestream
+- email: paulsandip18@gmail.com
+- password: <>
+
+- create account -> will generated a confirmation email to the same email. go and confirm.
+
+- Choose Choose your setup workflow -> there are mutiple ways -> 
+'Try an example configuration'/'start from scratch'/'Import local state'
+
+- select 'start from scratch'
+
+    - Organization name: javacodestream-org
+    - Email address: same as above(pre populated)
+
+- once we have created organization, we need to create workspace within that. 
+- for creating workspace, there are multiple workflow we can use. one of the most common is
+via 'version control workflow', if we select this, we will also have to integrate with
+any of the 4 available version control provider: GitHub/GitLab/Bitbucket/Azure DevOps
+
+- so all of our TF files will be stored on version control, from there we can run 
+terraform plan/apply in our terraform cloud workspace.
+
+
+Terraform Cloud Pricing
+--------------------------
+- Free
+    - upto 5 users
+    - OPEN SOURCE FEATURES, PLUS: 
+        - State management, 
+        - Remote operations, 
+        - Private module registry
+    - SUPPORT: Community support
+
+- Team & Governance
+    - STARTING AT $20/user
+    - EVERYTHING IN FREE, WITH OPTIONS TO ADD:
+        - Team management
+        - Sentinel policy as code
+        - Run tasks
+        - Additional concurrency
+    - SUPPORT: Bronze support
+
+- Business
+    - EVERYTHING IN TEAM & GOVERNANCE, PLUS:
+        - Drift detection
+        - SSO
+        - Audit logs
+        - Self-hosted agents
+        - Custom concurrency
+    - SUPPORT: Bronze, Silver, or Gold support
+
+
+
+Create new Workspace
+--------------------------------------------------------------
+- We will be creating workspace linked to our GitHub repo.
+- create a sample repo on github. make it public/private.
+
+    - repo name: terraform-cloud-demo
+    - https://github.com/JavaCodeStream/terraform-cloud-demo/tree/main
+
+- create a tf file: ec2.tf
+
+ec2.tf
+------
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myec2" {
+  ami           = "ami-01a4f99c4ac11b03c" # get it from console as per your aws region ap-south-1
+  instance_type = "t2.micro"
+}
+
+
+- Now login back to https://app.terraform.io/
+
+- create new workspace: 
+    - choose type: version control workflow
+    - connect to VCS: GitHub.com -> authorize terraform cloud -> allow popups 
+        - a new popup will opne: 'Install Terraform Cloud'
+        - only select repositories -> JavaCodeStream/terraform-cloud-demo
+        - click Install -> provide github password.
+    - choose a repository: select the one (terraform-cloud-demo)
+    - configure settings: give a Workspace Name: terraform-cloud-workspace-demo -> create workspace
+
+
+- Now the ec2.tf code we added to our terraform-cloud-demo repo does not have 
+access key and secret. We now need to provide that details to terraform cloud by adding
+envirnment variable on the workspace -> variables -> add variable -> Environment variable
+-> add 2 variables like below:
+AWS_ACCESS_KEY_ID  (make it sensitive)
+AWS_SECRET_ACCESS_KEY  (make it sensitive)
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs#environment-variables
+
+
+- Now we can go ahead and perform the terraform actions. Remember: We do not need to add any backend
+config on terraform block since this TF config are integrated with terraform cloud workspace via
+VCS.
+
+- Actions button -> dropdown -> start a new run -> popup -> 
+select plan/apply etc 'Plan and apply (standard)'
+
+- Now since our github repo is integrated, as soon as we make any changes like adding 
+a new TF config, terraform will start the run automatically. Note: it will not apply by
+default, just the plan and it will wait for user input for apply.
+
+- In case we want to delete all the resources we have created from terraform cloud, we can
+go to workspace settings -> destruction and deletion -> queue destroy plan. 
+
+
+
+
+Sentinel
+--------------------------------------------------------------
+- Sentinel is a policy-as-code frameworks integrated with hashicorp cloud.
+
+- Policies are rules that Terraform Cloud enforces on Terraform runs.
+
+- You can use policies to validate that the Terraform plan complies with security rules 
+and best practices.
+
+- enables fine-grained, logic-based policies
+
+- Depending on the settings, policies can act as advisory warnings or firm requirements 
+that prevent Terraform from provisioning infrastructure.
+
+NOTE: Sentinel is paid feature of terrafiorm cloud.
+
+- Terraform Plan  --> Sentinel Checks  --> Terraform Apply.
+
+
+example Sentinel Policy (to be added on terrform cloud UI):
+------------------------------------------------------------
+import "tfplan"
+
+main = rule {
+  all tfplan.resources.aws_instance as _, instances {
+    all instances as _, r {
+      (length(r.applied.tags) else 0) > 0
+    }
+  }
+}
+
+
+
+EC2 Instance with Tags Code:
+ec2.tf
+-------
+provider "aws" {
+  region     = "us-west-2"
+}
+
+resource "aws_instance" "myec2" {
+   ami = "ami-082b5a644766e0e6f"
+   instance_type = "t2.micro"
+
+   tags = {
+    Name = "HelloWorld"
+  }  
+}
+
+
+
+_ Since Sentinel feature is not available on free tier account, we need to upgrade
+from 'plan & billing' section.
+
+- Steps to create sentinel policy:
+    - policy set:
+        - first create a policy set -> select no VCS connection (but like workspace we can even 
+        keep our policies on a Github repo and integrate here)
+        - we can choose the policy set to be applicable either to all workspaces or selected
+        workspaces.
+    - policy:
+        - Now creata a policy to the above policy set. add a name to the policy and the add 
+        the policy code.
+        - select enforcement type: any one of the dropdown list:
+        hard-mandatory(cannot override)/soft-mandatory(can override)/advisory(logging only)
+        - select the policy set to which you want to add the policy to.
+
+- Now everytime we run, after every terraform plan, the sentinel policy checks will get
+triggered.
+
+
+
+
+Terraform Cloud - Backend Operation Types
+==============================================================
+- 2 ways of running TF using terraform cloud.
+
+- Complete Remote 
+  - state file stored on Tf cloud and TF configs on Git repo.
+  - TF actions plan/apply to be run on terraform cloud UI. or any changes on repo will
+  automatically trigger terraform apply and ask for approval on TF cloud UI.
+
+- Local operations.
+  - configured via cloud backend type.
+  - state file stored but TF files will on local machine.
+  - locally execute terraform plan/apply but gets executed on TF cloud but logs
+  gets streamed to local terminal.
+
+- Terraform cloud can also be used with local operations, in which case only state is stored in 
+the terraform cloud
+
+- Using the Full remote operations, actions like terraform plan and terraform apply can be 
+executed in Terraform Cloud's run envirnment.
+
+- You only need to configure these settings when you want to use Terraform CLI to interact 
+with Terraform Cloud. 
+
+- Terraform Cloud ignores them when interacting with Terraform through version control or the API.
+
+Usage Example
+--------------
+- To configure the Terraform Cloud CLI integration, add a nested cloud block within 
+the terraform block.
+
+
+terraform {
+  cloud {
+    organization = "example_corp"
+    ## Required for Terraform Enterprise; Defaults to app.terraform.io for Terraform Cloud
+    hostname = "app.terraform.io"
+
+    workspaces {
+      name = "workspace_name"
+    }
+  }
+}
+
+
+
+Hands-on (locally run terraform plan/apply)
+---------------------------------------------
+
+remote-backend.tf
+------------------
+terraform {
+  cloud {
+    organization = "javacodestream-org"
+
+    workspaces {
+      name = "tf-cloud-cli"
+    }
+  }
+}
+
+
+iam.tf
+--------
+provider "aws" {
+  region     = "ap-south-1"
+  access_key = "YOUR-ACCESS-KEY"
+  secret_key = "YOUR-SECRET-KEY"
+}
+
+resource "aws_iam_user" "lb" {
+  name = "loadbalancer"
+  path = "/system/"
+}
+
+
+
+
+We will use CLI Commands
+--------------------------
+terraform login
+terraform init
+terraform plan
+terraform apply -auto-approve
+terraform destroy -auto-approve
+
+1/ login to Terraform cloud. 
+
+2/ create a new workdspace on terraform cloud UI. name it: tf-cloud-cli -> select type as
+'CLI-driven workflow'. Note: we will not select 'Version control workflow' as that would need
+all of our TF files to be placed on a VCS (github). But we want the TF files to come from
+our local machine.
+
+3/ In the next page it shows the steps to add cloud block to our TF config like below:
+
+a code block to your Terraform configuration files to set up the cloud integration . 
+You can add this configuration block to any .tf file in the directory where you run Terraform.
+
+terraform {
+  cloud {
+    organization = "javacodestream-org"
+
+    workspaces {
+      name = "tf-cloud-cli"
+    }
+  }
+}
+
+4/ Now navigate to variables section and add the below envirnment variables:
+
+AWS_ACCESS_KEY_ID  (make it sensitive)
+AWS_SECRET_ACCESS_KEY  (make it sensitive)
+
+
+5/ create above 2 TF files (remote-backend.tf and iam.tf) on your local machine.
+
+
+6/ Run 'terraform login'
+
+
+7/ Run 'terraform init' to initialize the workspace.
+
+
+7/ Run 'terraform apply' to start the first run for this workspace.
+
+
+
+1. terraform login
+---------------------------
+- login to terraform cloud if not done via browser, if not done, the below command will open
+a pop where you need to login first.
+- this command actually ask you to create a access token on terraform cloud. 
+give it a name when asked: 'terraform cli login'
+
+- once created, you need to copy and paste that token on your CLI. and you will login.
+
+
+$ terraform login
+
+Terraform will request an API token for app.terraform.io using your browser.
+
+If login is successful, Terraform will store the token in plain text in
+the following file for use by subsequent commands:
+    /Users/sandip/.terraform.d/credentials.tfrc.json
+
+Do you want to proceed?
+  Only 'yes' will be accepted to confirm.
+
+  Enter a value: yes
+
+
+---------------------------------------------------------------------------------
+
+Terraform must now open a web browser to the tokens page for app.terraform.io.
+
+If a browser does not open this automatically, open the following URL to proceed:
+    https://app.terraform.io/app/settings/tokens?source=terraform-login
+
+
+---------------------------------------------------------------------------------
+
+Generate a token using your browser, and copy-paste it into this prompt.
+
+Terraform will store the token in plain text in the following file
+for use by subsequent commands:
+    /Users/sandip/.terraform.d/credentials.tfrc.json
+
+Token for app.terraform.io:
+  Enter a value: 
+
+
+
+
+-------
+Your new API token is displayed below.
+KV......Cjk1A.........1Is.................................Sq...Y
+Click on the token to copy it, and paste into your Terraform login prompt to continue.
+
+------
+
+Retrieved token for user javacodestream
+
+
+---------------------------------------------------------------------------------
+
+                                          -                                
+                                          -----                           -
+                                          ---------                      --
+                                          ---------  -                -----
+                                           ---------  ------        -------
+                                             -------  ---------  ----------
+                                                ----  ---------- ----------
+                                                  --  ---------- ----------
+   Welcome to Terraform Cloud!                     -  ---------- -------
+                                                      ---  ----- ---
+   Documentation: terraform.io/docs/cloud             --------   -
+                                                      ----------
+                                                      ----------
+                                                       ---------
+                                                           -----
+                                                               -
+
+
+   New to TFC? Follow these steps to instantly apply an example configuration:
+
+   $ git clone https://github.com/hashicorp/tfc-getting-started.git
+   $ cd tfc-getting-started
+   $ scripts/setup.sh
+
+
+
+$ pwd
+/learn-terraform/terraform-cloud/cli-run
+
+
+$ tree
+.
+├── cloud-backend.tf
+└── iam.tf
+
+
+
+- terraform init shows message: 'Terraform Cloud has been successfully initialized!' instead of 
+'Terraform has been successfully initialized!'
+
+$ terraform init 
+
+Initializing Terraform Cloud...
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/aws...
+- Installing hashicorp/aws v4.55.0...
+- Installed hashicorp/aws v4.55.0 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
+
+Terraform Cloud has been successfully initialized!
+
+
+$ tree -a .
+.
+├── .terraform
+│   ├── environment
+│   ├── providers
+│   │   └── registry.terraform.io
+│   │       └── hashicorp
+│   │           └── aws
+│   │               └── 4.55.0
+│   │                   └── darwin_arm64
+│   │                       └── terraform-provider-aws_v4.55.0_x5
+│   └── terraform.tfstate
+├── .terraform.lock.hcl
+├── cloud-backend.tf
+└── iam.tf
+
+
+
+
+
+$ terraform plan 
+
+Running plan in Terraform Cloud. Output will stream here. Pressing Ctrl-C
+will stop streaming the logs, but will not stop the plan running remotely.
+
+Preparing the remote plan...
+
+To view this run in a browser, visit:
+https://app.terraform.io/app/javacodestream-org/tf-cloud-cli/runs/run-hDYUMSMWBXVHa1ME
+
+Waiting for the plan to start...
+
+Terraform v1.3.8
+on linux_amd64
+Initializing plugins and modules...
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_iam_user.myiamuser will be created
+  + resource "aws_iam_user" "myiamuser" {
+      + arn           = (known after apply)
+      + force_destroy = false
+      + id            = (known after apply)
+      + name          = "loadbalancer"
+      + path          = "/system/"
+      + tags_all      = (known after apply)
+      + unique_id     = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + myiamuser_arn = (known after apply)
+
+
+$ terraform apply
+
+Running apply in Terraform Cloud. Output will stream here. Pressing Ctrl-C
+will cancel the remote apply if it's still pending. If the apply started it
+will stop streaming the logs, but will not stop the apply running remotely.
+
+Preparing the remote apply...
+
+To view this run in a browser, visit:
+https://app.terraform.io/app/javacodestream-org/tf-cloud-cli/runs/run-y8dCKu4nCdWFe5iC
+
+Waiting for the plan to start...
+
+Terraform v1.3.8
+on linux_amd64
+Initializing plugins and modules...
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_iam_user.myiamuser will be created
+  + resource "aws_iam_user" "myiamuser" {
+      + arn           = (known after apply)
+      + force_destroy = false
+      + id            = (known after apply)
+      + name          = "loadbalancer"
+      + path          = "/system/"
+      + tags_all      = (known after apply)
+      + unique_id     = (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + myiamuser_arn = (known after apply)
+
+Do you want to perform these actions in workspace "tf-cloud-cli"?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+aws_iam_user.myiamuser: Creation complete after 0s [id=loadbalancer]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+myiamuser_arn = "arn:aws:iam::295631050085:user/system/loadbalancer"
+
+
+
+
+- we can also check the logs on terraform cloud UI by going to the URL.
+https://app.terraform.io/app/javacodestream-org/tf-cloud-cli/runs/run-hDYUMSMWBXVHa1ME
+
+
+
+
+$ terraform destroy 
+Running apply in Terraform Cloud. Output will stream here. Pressing Ctrl-C
+will cancel the remote apply if it's still pending. If the apply started it
+will stop streaming the logs, but will not stop the apply running remotely.
+
+Preparing the remote apply...
+
+To view this run in a browser, visit:
+https://app.terraform.io/app/javacodestream-org/tf-cloud-cli/runs/run-wQc7Zsq7arne929S
+
+Waiting for the plan to start...
+
+Terraform v1.3.8
+on linux_amd64
+Initializing plugins and modules...
+aws_iam_user.myiamuser: Refreshing state... [id=loadbalancer]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_iam_user.myiamuser will be destroyed
+  - resource "aws_iam_user" "myiamuser" {
+      - arn           = "arn:aws:iam::295631050085:user/system/loadbalancer" -> null
+      - force_destroy = false -> null
+      - id            = "loadbalancer" -> null
+      - name          = "loadbalancer" -> null
+      - path          = "/system/" -> null
+      - tags          = {} -> null
+      - tags_all      = {} -> null
+      - unique_id     = "AIDAUJVH32VSQ3GZPEA4G" -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Changes to Outputs:
+  - myiamuser_arn = "arn:aws:iam::295631050085:user/system/loadbalancer" -> null
+
+Do you really want to destroy all resources in workspace "tf-cloud-cli"?
+  Terraform will destroy all your managed infrastructure, as shown above.
+  There is no undo. Only 'yes' will be accepted to confirm.
+
+  Enter a value: yes
+
+aws_iam_user.myiamuser: Destruction complete after 0s
+
+Apply complete! Resources: 0 added, 0 changed, 1 destroyed.
+
+
+
+$ terraform logout
+
+Removing the stored credentials for app.terraform.io from the following file:
+    /Users/sandip/.terraform.d/credentials.tfrc.json
+
+Success! Terraform has removed the stored API token for app.terraform.io.

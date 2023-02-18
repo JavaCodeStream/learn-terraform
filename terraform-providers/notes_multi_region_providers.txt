@@ -1,0 +1,157 @@
+Single Provider Multiple Configuration
+=================================================
+- Till now, we have hard coding the aws-region parameter within the providers.tf for aws
+provider.
+
+- this means, all the resources would be created in the same region specified in the providers.tf
+file.
+
+- Also, if dont add the region parameter in provider section, while running rettaform plan/apply.,
+terraform will ask the region as user input.
+
+- But there could be usecases, where we want to create resources on multiple regions 
+or in  multiple accounts.
+
+ex: 
+myec2_1 ---> ap-south-1 and myec2_2 ---> us-east-1
+or
+myec2_1 ---> aws account1 and myec2_2 ---> aws account2
+
+- Note: In this case, we can't have 2 provider block for aws like below:
+
+provider "aws" {
+  region     =  "us-west-1"
+}
+
+provider "aws" {
+  region     =  "ap-south-1"
+}
+
+
+- terraform plan throws error: Error: Duplicate provider configuration
+
+
+alias: Multiple Provider Configurations
+------------------------------------------
+- You can optionally define multiple configurations for the same provider, and select 
+which one to use on a per-resource or per-module basis.
+
+- this is to support multiple regions for a cloud platform
+
+- include multiple provider blocks with the same provider name. 
+
+    - For each additional non-default configuration, use the alias meta-argument 
+    to provide an extra name segment.
+
+
+# The default provider configuration; resources that begin with `aws_` will use
+# it as the default, and it can be referenced as `aws`.
+provider "aws" {
+  region = "us-east-1"
+}
+
+# Additional provider configuration for west coast region; resources can
+# reference this as `aws.west`.
+provider "aws" {
+  alias  = "west"
+  region = "us-west-2"
+}
+
+
+
+Default Provider Configurations
+---------------------------------
+- A provider block without an alias argument is the default configuration for that provider.
+
+- Resources that don't set the provider meta-argument will use the default provider 
+configuration that matches the first word of the resource type name.
+(For example, an aws_instance resource uses the default aws provider configuration 
+unless otherwise stated.)
+
+
+
+Referring to Alternate Provider Configurations
+-------------------------------------------------
+provider "aws" {
+  region = "us-east-1"
+}
+provider "aws" {
+  alias  = "west"
+  region = "us-west-2"
+}
+
+
+- When Terraform needs the name of a provider configuration, it expects a reference of 
+the form <PROVIDER NAME>.<ALIAS>. 
+
+In the example above, aws.west would refer to the provider with the us-west-2 region.
+
+- These references are special expressions.
+
+- they are only valid in specific meta-arguments of resource, data, and module blocks, 
+and can't be used in arbitrary expressions.
+
+
+
+Selecting Alternate Provider Configurations: resource
+--------------------------------------------------------
+- By default, resources use a default provider configuration (one without an alias argument)
+
+
+- To use an alternate provider configuration for a resource or data source, set its provider 
+meta-argument to a <PROVIDER NAME>.<ALIAS> reference:
+
+resource "aws_instance" "foo" {
+  provider = aws.west
+
+  # ...
+}
+
+
+
+Selecting Alternate Provider Configurations: module
+------------------------------------------------------
+- To select alternate provider configurations for a child module, use its 
+providers meta-argument to specify which provider configurations should be 
+mapped to which local provider names inside the module:
+
+module "aws_vpc" {
+  source = "./aws_vpc"
+  providers = {
+    aws = aws.west
+  }
+}
+
+
+
+Creating resource in multiple aws accounts
+----------------------------------------------
+- This can be achieved using the profile feature that comes with aws credentials when we do
+aws configure and it asks the aws secret id and key and regiosn and set a profile name.
+
+.aws/credentials
+
+[default]
+aws_access_key_id=<>
+aws_secret_access_key=<>
+
+
+[account2]
+aws_access_key_id=<>
+aws_secret_access_key=<>
+
+
+provider "aws" {
+  region     =  "us-west-1"
+}
+
+provider "aws" {
+  alias      =  "mumbai"
+  region     =  "ap-south-1"
+   profile    =  "account02"
+}
+
+
+
+
+
